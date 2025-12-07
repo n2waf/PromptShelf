@@ -512,6 +512,7 @@
             elements.titleInput = document.getElementById('title-input');
             elements.descriptionInput = document.getElementById('description-input');
             elements.bodyInput = document.getElementById('body-input');
+            elements.bodyDisplay = document.getElementById('body-display');
             elements.tagInput = document.getElementById('tag-input');
             elements.tagSuggestions = document.getElementById('tag-suggestions');
             elements.promptTags = document.getElementById('prompt-tags');
@@ -617,7 +618,19 @@
             const readonly = !editMode;
             elements.titleInput.readOnly = readonly;
             elements.descriptionInput.readOnly = readonly;
-            elements.bodyInput.readOnly = readonly;
+
+            // Toggle between display (with placeholders highlighted) and textarea
+            if (elements.bodyDisplay && elements.bodyInput) {
+                if (editMode) {
+                    elements.bodyDisplay.classList.add('hidden');
+                    elements.bodyInput.classList.remove('hidden');
+                } else {
+                    elements.bodyInput.classList.add('hidden');
+                    elements.bodyDisplay.classList.remove('hidden');
+                    // Render body with highlighted placeholders
+                    elements.bodyDisplay.innerHTML = this.highlightPlaceholders(version?.body || '');
+                }
+            }
 
             // Hide tag input container when not in edit mode
             const tagInputContainer = document.getElementById('tag-input-container');
@@ -640,6 +653,13 @@
                     <span class="version-date">${Utils.formatFullDate(version.createdAt)}</span>
                 `;
             }
+        },
+
+        highlightPlaceholders(text) {
+            if (!text) return '';
+            // Escape HTML first, then highlight [placeholders]
+            const escaped = Utils.escapeHtml(text);
+            return escaped.replace(/\[([^\]]+)\]/g, '<span class="placeholder">[$1]</span>');
         },
 
         renderPromptTags(tags, editMode) {

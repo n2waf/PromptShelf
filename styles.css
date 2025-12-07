@@ -496,6 +496,39 @@ body.modal-open {
     border-color: transparent;
 }
 
+.body-display {
+    flex: 1;
+    width: 100%;
+    padding: 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.body-display.hidden {
+    display: none;
+}
+
+.body-display .placeholder {
+    background-color: #e7f1ff;
+    color: #0056b3;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+body.dark .body-display .placeholder {
+    background-color: #1a3a5c;
+    color: #6db3f2;
+}
+
 /* Editor Footer */
 .editor-footer {
     display: flex;
