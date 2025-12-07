@@ -627,8 +627,8 @@
                 } else {
                     elements.bodyInput.classList.add('hidden');
                     elements.bodyDisplay.classList.remove('hidden');
-                    // Render body with highlighted placeholders
-                    elements.bodyDisplay.innerHTML = this.highlightPlaceholders(version?.body || '');
+                    // Render body with highlighted placeholders (App.placeholderFills for temp fills)
+                    elements.bodyDisplay.innerHTML = this.highlightPlaceholders(version?.body || '', App.placeholderFills || {});
                 }
             }
 
@@ -655,11 +655,18 @@
             }
         },
 
-        highlightPlaceholders(text) {
+        highlightPlaceholders(text, fills = {}) {
             if (!text) return '';
             // Escape HTML first, then highlight [placeholders]
             const escaped = Utils.escapeHtml(text);
-            return escaped.replace(/\[([^\]]+)\]/g, '<span class="placeholder">[$1]</span>');
+            return escaped.replace(/\[([^\]]+)\]/g, (match) => {
+                const filled = fills[match];
+                if (filled) {
+                    // Show filled value with different style
+                    return `<span class="placeholder filled" data-placeholder="${Utils.escapeHtml(match)}">${Utils.escapeHtml(filled)}</span>`;
+                }
+                return `<span class="placeholder" data-placeholder="${Utils.escapeHtml(match)}">${match}</span>`;
+            });
         },
 
         renderPromptTags(tags, editMode) {
@@ -935,6 +942,14 @@
             elements.importInput?.addEventListener('change', (e) => this.handleImport(e));
             elements.darkModeToggle?.addEventListener('click', () => this.handleToggleDarkMode());
 
+            // Click on placeholder to edit it
+            elements.bodyDisplay?.addEventListener('click', (e) => {
+                const placeholder = e.target.closest('.placeholder');
+                if (placeholder) {
+                    this.handlePlaceholderClick(placeholder.dataset.placeholder);
+                }
+            });
+
             elements.modal?.addEventListener('click', (e) => {
                 if (e.target === elements.modal || e.target.closest('[data-action="close-modal"]')) {
                     UI.hideModal();
@@ -977,6 +992,9 @@
             try {
                 const prompt = await DB.getPrompt(id);
                 if (!prompt) return;
+
+                // Clear temporary placeholder fills when switching prompts
+                this.placeholderFills = {};
 
                 const versions = await DB.getVersions(id);
                 const currentVersion = versions.find(v => v.id === prompt.currentVersionId) || versions[0];
@@ -1040,6 +1058,68 @@
             State.set({ editMode: true });
         },
 
+        // Temporary placeholder fills (not saved, just for copying)
+        placeholderFills: {},
+
+        handlePlaceholderClick(placeholderText) {
+            // Show inline input to fill the placeholder temporarily
+            const placeholder = document.querySelector(`.placeholder[data-placeholder="${CSS.escape(placeholderText)}"]`);
+            if (!placeholder) return;
+
+            // Create inline input
+            const currentValue = this.placeholderFills[placeholderText] || placeholderText.slice(1, -1); // Remove brackets for default
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'placeholder-input';
+            input.value = currentValue === placeholderText.slice(1, -1) ? '' : currentValue;
+            input.placeholder = placeholderText.slice(1, -1);
+
+            // Replace placeholder with input
+            placeholder.replaceWith(input);
+            input.focus();
+            input.select();
+
+            const finishEdit = () => {
+                const value = input.value.trim();
+                if (value) {
+                    // Store the fill value
+                    this.placeholderFills[placeholderText] = value;
+                } else {
+                    // Remove fill if empty
+                    delete this.placeholderFills[placeholderText];
+                }
+                // Re-render the body display
+                this.refreshBodyDisplay();
+            };
+
+            input.addEventListener('blur', finishEdit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    input.blur();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    delete this.placeholderFills[placeholderText];
+                    input.blur();
+                }
+            });
+        },
+
+        refreshBodyDisplay() {
+            const s = State.get();
+            if (!s.currentVersionId || s.editMode) return;
+
+            DB.getVersion(s.currentVersionId).then(version => {
+                if (version && elements.bodyDisplay) {
+                    elements.bodyDisplay.innerHTML = UI.highlightPlaceholders(version.body || '', this.placeholderFills);
+                }
+            });
+        },
+
+        clearPlaceholderFills() {
+            this.placeholderFills = {};
+        },
+
         handleCancelEdit() {
             // Reset to last saved values
             UI.lastRenderedPromptId = null;
@@ -1048,11 +1128,19 @@
         },
 
         handleCopy() {
-            const body = elements.bodyInput?.value || '';
+            let body = elements.bodyInput?.value || '';
             if (!body) {
                 UI.showToast('Nothing to copy', 'error');
                 return;
             }
+
+            // Apply placeholder fills if any
+            if (Object.keys(this.placeholderFills).length > 0) {
+                for (const [placeholder, value] of Object.entries(this.placeholderFills)) {
+                    body = body.split(placeholder).join(value);
+                }
+            }
+
             navigator.clipboard.writeText(body).then(() => {
                 UI.showToast('Copied to clipboard');
             }).catch(() => {
