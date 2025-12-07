@@ -8,6 +8,7 @@ A local-first prompt management tool with automatic versioning. Store, organize,
 - **Automatic Versioning** — Every save creates a new version automatically
 - **Version History** — View all previous versions with timestamps
 - **Version Comparison** — Compare any two versions with unified diff view
+- **Placeholder Quick-Fill** — Click `[placeholders]` to fill them temporarily before copying
 - **Tags** — Organize prompts with custom tags and filter by them
 - **Search** — Find prompts by title or description
 - **Dark Mode** — Easy on the eyes, persists across sessions
