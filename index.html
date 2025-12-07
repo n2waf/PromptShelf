@@ -116,7 +116,22 @@
                                 </svg>
                                 History
                             </button>
-                            <button id="save-btn" class="btn">Save</button>
+                            <button id="copy-btn" class="btn secondary" title="Copy prompt">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                                Copy
+                            </button>
+                            <button id="edit-btn" class="btn secondary" title="Edit prompt">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                                Edit
+                            </button>
+                            <button id="save-btn" class="btn hidden">Save</button>
+                            <button id="cancel-edit-btn" class="btn secondary hidden">Cancel</button>
                         </div>
                     </div>
                 </div>

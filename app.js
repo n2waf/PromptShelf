@@ -311,7 +311,8 @@
         darkMode: false,
         searchQuery: '',
         filterTags: [],
-        showVersionHistory: false
+        showVersionHistory: false,
+        editMode: false
     };
 
     const listeners = new Set();
@@ -523,7 +524,9 @@
             elements.darkModeToggle = document.getElementById('dark-mode-toggle');
             elements.newPromptBtn = document.getElementById('new-prompt-btn');
             elements.saveBtn = document.getElementById('save-btn');
-            elements.saveVersionBtn = document.getElementById('save-version-btn');
+            elements.editBtn = document.getElementById('edit-btn');
+            elements.cancelEditBtn = document.getElementById('cancel-edit-btn');
+            elements.copyBtn = document.getElementById('copy-btn');
             elements.historyBtn = document.getElementById('history-btn');
             elements.deleteBtn = document.getElementById('delete-btn');
             elements.exportBtn = document.getElementById('export-btn');
@@ -584,7 +587,7 @@
         lastRenderedPromptId: null,
         lastRenderedVersionId: null,
 
-        renderEditor(prompt, version, isDirty) {
+        renderEditor(prompt, version, isDirty, editMode) {
             if (!elements.editorContent || !elements.editorEmpty) return;
 
             if (!prompt) {
@@ -610,6 +613,22 @@
                 this.lastRenderedVersionId = version?.id;
             }
 
+            // Set readonly state based on edit mode
+            const readonly = !editMode;
+            elements.titleInput.readOnly = readonly;
+            elements.descriptionInput.readOnly = readonly;
+            elements.bodyInput.readOnly = readonly;
+
+            // Hide tag input container when not in edit mode
+            const tagInputContainer = document.getElementById('tag-input-container');
+            if (tagInputContainer) tagInputContainer.classList.toggle('hidden', readonly);
+
+            // Toggle button visibility based on edit mode
+            if (elements.editBtn) elements.editBtn.classList.toggle('hidden', editMode);
+            if (elements.copyBtn) elements.copyBtn.classList.toggle('hidden', editMode);
+            if (elements.saveBtn) elements.saveBtn.classList.toggle('hidden', !editMode);
+            if (elements.cancelEditBtn) elements.cancelEditBtn.classList.toggle('hidden', !editMode);
+
             if (elements.saveBtn) {
                 elements.saveBtn.disabled = !isDirty;
                 elements.saveBtn.textContent = isDirty ? 'Save*' : 'Save';
@@ -623,12 +642,12 @@
             }
         },
 
-        renderPromptTags(tags) {
+        renderPromptTags(tags, editMode) {
             if (!elements.promptTags) return;
             elements.promptTags.innerHTML = tags.map(tag => `
-                <span class="tag-chip editable" data-tag="${Utils.escapeHtml(tag)}">
+                <span class="tag-chip ${editMode ? 'editable' : ''}" data-tag="${Utils.escapeHtml(tag)}">
                     ${Utils.escapeHtml(tag)}
-                    <button class="tag-remove" data-tag="${Utils.escapeHtml(tag)}">&times;</button>
+                    ${editMode ? `<button class="tag-remove" data-tag="${Utils.escapeHtml(tag)}">&times;</button>` : ''}
                 </span>
             `).join('');
         },
@@ -833,10 +852,10 @@
 
             UI.renderPromptList(filteredPrompts, s.currentPromptId);
             UI.renderTagFilter(s.allTags, s.filterTags);
-            UI.renderEditor(currentPrompt, s.currentVersion, s.isDirty);
+            UI.renderEditor(currentPrompt, s.currentVersion, s.isDirty, s.editMode);
 
             if (currentPrompt) {
-                UI.renderPromptTags(currentPrompt.tags || []);
+                UI.renderPromptTags(currentPrompt.tags || [], s.editMode);
             }
 
             if (s.showVersionHistory) {
@@ -886,7 +905,9 @@
             });
 
             elements.saveBtn?.addEventListener('click', () => this.handleSave());
-            elements.saveVersionBtn?.addEventListener('click', () => this.handleSaveAsVersion());
+            elements.editBtn?.addEventListener('click', () => this.handleEnterEditMode());
+            elements.cancelEditBtn?.addEventListener('click', () => this.handleCancelEdit());
+            elements.copyBtn?.addEventListener('click', () => this.handleCopy());
             elements.historyBtn?.addEventListener('click', () => this.handleToggleHistory());
             elements.deleteBtn?.addEventListener('click', () => this.handleDelete());
             elements.exportBtn?.addEventListener('click', () => this.handleExport());
@@ -921,6 +942,8 @@
                 State.set({ prompts });
                 await this.selectPrompt(prompt.id);
 
+                // Enter edit mode for new prompt
+                State.set({ editMode: true });
                 elements.titleInput?.focus();
                 elements.titleInput?.select();
                 UI.showToast('Prompt created');
@@ -943,7 +966,8 @@
                     currentVersion,
                     versions,
                     isDirty: false,
-                    showVersionHistory: false
+                    showVersionHistory: false,
+                    editMode: false
                 });
 
                 UI.showVersionPanel(false);
@@ -984,10 +1008,36 @@
 
                 State.set({ prompts: updatedPrompts, versions: updatedVersions, currentVersion: newVersion, isDirty: false });
                 UI.showToast(`Saved v${newVersion.versionNumber}`);
+                // Exit edit mode after save
+                State.set({ editMode: false });
             } catch (error) {
                 console.error('Failed to save:', error);
                 UI.showToast('Failed to save', 'error');
             }
+        },
+
+        handleEnterEditMode() {
+            State.set({ editMode: true });
+        },
+
+        handleCancelEdit() {
+            // Reset to last saved values
+            UI.lastRenderedPromptId = null;
+            UI.lastRenderedVersionId = null;
+            State.set({ editMode: false, isDirty: false });
+        },
+
+        handleCopy() {
+            const body = elements.bodyInput?.value || '';
+            if (!body) {
+                UI.showToast('Nothing to copy', 'error');
+                return;
+            }
+            navigator.clipboard.writeText(body).then(() => {
+                UI.showToast('Copied to clipboard');
+            }).catch(() => {
+                UI.showToast('Failed to copy', 'error');
+            });
         },
 
         handleSaveAsVersion() {

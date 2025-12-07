@@ -313,6 +313,16 @@ body.modal-open {
     border-color: var(--accent-color);
 }
 
+.editor-input:read-only {
+    background-color: var(--bg-secondary);
+    border-color: transparent;
+    cursor: default;
+}
+
+.editor-input:read-only:focus {
+    border-color: transparent;
+}
+
 .editor-input.title {
     font-size: 18px;
     font-weight: 600;
@@ -474,6 +484,16 @@ body.modal-open {
 
 .body-input:focus {
     border-color: var(--accent-color);
+}
+
+.body-input:read-only {
+    background-color: var(--bg-secondary);
+    border-color: transparent;
+    cursor: default;
+}
+
+.body-input:read-only:focus {
+    border-color: transparent;
 }
 
 /* Editor Footer */
