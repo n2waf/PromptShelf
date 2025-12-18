@@ -5,10 +5,79 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="PromptShelf - A local-first prompt management tool with versioning">
     <title>PromptShelf</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20241218-8">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
-    <div class="app-container">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <h1>PromptShelf</h1>
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen hidden">
+        <div class="login-left">
+            <div class="login-branding">
+                <div class="login-illustration">
+                    <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="100" cy="100" r="80" fill="url(#grad1)" opacity="0.1"/>
+                        <rect x="60" y="50" width="80" height="100" rx="8" fill="white" stroke="#667eea" stroke-width="2"/>
+                        <line x1="70" y1="70" x2="130" y2="70" stroke="#667eea" stroke-width="2" opacity="0.5"/>
+                        <line x1="70" y1="85" x2="120" y2="85" stroke="#667eea" stroke-width="2" opacity="0.3"/>
+                        <line x1="70" y1="100" x2="110" y2="100" stroke="#667eea" stroke-width="2" opacity="0.3"/>
+                        <line x1="70" y1="115" x2="125" y2="115" stroke="#667eea" stroke-width="2" opacity="0.3"/>
+                        <circle cx="150" cy="60" r="20" fill="#667eea" opacity="0.2"/>
+                        <circle cx="50" cy="140" r="15" fill="#764ba2" opacity="0.2"/>
+                        <defs>
+                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#667eea"/>
+                                <stop offset="100%" style="stop-color:#764ba2"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h2>Manage Your Prompts</h2>
+                <p>Store, organize, and version your AI prompts in one place.</p>
+            </div>
+        </div>
+        <div class="login-right">
+            <div class="login-form-container">
+                <h1>PromptShelf</h1>
+                <p class="login-subtitle">Sign in to manage your prompts</p>
+
+                <form id="login-form" class="login-form">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" required placeholder="you@example.com" autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" required placeholder="Password" minlength="6" autocomplete="current-password">
+                    </div>
+                    <div id="login-error" class="login-error hidden"></div>
+                    <button type="submit" id="login-submit-btn" class="btn primary full-width">Sign In</button>
+                </form>
+
+                <div class="login-switch">
+                    <span id="login-switch-text">Don't have an account?</span>
+                    <button type="button" id="login-switch-btn" class="btn-link">Sign Up</button>
+                </div>
+
+                <div class="login-footer">
+                    <p>Created by <a href="https://github.com/n2waf" target="_blank">Nawaf Almuaither</a></p>
+                    <p><a href="https://github.com/n2waf/PromptShelf" target="_blank">View on GitHub</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container hidden" id="app-container">
         <!-- Header -->
         <header class="header">
             <div class="header-logo">PromptShelf</div>
@@ -33,6 +102,28 @@
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                     </svg>
                 </button>
+                <!-- Auth Button (logged out) -->
+                <button id="auth-btn" class="btn-icon" title="Sign in to sync">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                </button>
+                <!-- User Menu (logged in) -->
+                <div id="user-menu" class="user-menu hidden">
+                    <button id="user-menu-btn" class="btn-icon user-avatar" title="Account">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                    </button>
+                    <div id="user-dropdown" class="user-dropdown hidden">
+                        <div id="user-email" class="user-email"></div>
+                        <div id="sync-status" class="sync-status"></div>
+                        <button id="sync-now-btn" class="dropdown-item">Backup to Cloud</button>
+                        <button id="logout-btn" class="dropdown-item danger">Sign Out</button>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -151,10 +242,35 @@
         <div id="modal-content" class="modal-content"></div>
     </div>
 
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content auth-modal-content">
+            <button class="modal-close" data-action="close-auth-modal">&times;</button>
+            <h2 id="auth-modal-title">Sign In</h2>
+            <p class="auth-subtitle">Sync your prompts across devices</p>
+            <form id="auth-form">
+                <div class="form-group">
+                    <label for="auth-email">Email</label>
+                    <input type="email" id="auth-email" required placeholder="you@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="auth-password">Password</label>
+                    <input type="password" id="auth-password" required placeholder="Password" minlength="6" autocomplete="current-password">
+                </div>
+                <div id="auth-error" class="auth-error hidden"></div>
+                <button type="submit" id="auth-submit-btn" class="btn primary full-width">Sign In</button>
+            </form>
+            <div class="auth-switch">
+                <span id="auth-switch-text">Don't have an account?</span>
+                <button type="button" id="auth-switch-btn" class="btn-link">Sign Up</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div id="toast" class="toast hidden"></div>
 
     <!-- App Script -->
-    <script src="app.js"></script>
+    <script src="app.js?v=20241218-13"></script>
 </body>
 </html>

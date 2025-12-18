@@ -130,6 +130,19 @@
             });
         },
 
+        // Clear all prompts, versions, and tags
+        async clearAllPrompts() {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['prompts', 'versions', 'tags'], 'readwrite');
+                transaction.onerror = () => reject(transaction.error);
+                transaction.oncomplete = () => resolve();
+
+                transaction.objectStore('prompts').clear();
+                transaction.objectStore('versions').clear();
+                transaction.objectStore('tags').clear();
+            });
+        },
+
         async getVersions(promptId) {
             return new Promise((resolve, reject) => {
                 const store = this.transaction('versions');
@@ -250,21 +263,26 @@
                     await this.updateTagUsage(tag, 1);
                 }
 
-                let lastVersionId = null;
+                // Create all versions
                 for (const versionData of (promptData.versions || [])) {
-                    const version = await this.createVersion({
+                    await this.createVersion({
                         promptId: prompt.id,
                         body: versionData.body,
                         versionNumber: versionData.versionNumber,
                         note: versionData.note
                     });
-                    lastVersionId = version.id;
                 }
 
-                if (lastVersionId) {
-                    await this.updatePrompt(prompt.id, { currentVersionId: lastVersionId });
+                // Get all versions and find the one with highest versionNumber
+                const allVersions = await this.getVersions(prompt.id);
+                if (allVersions.length > 0) {
+                    // getVersions returns sorted by versionNumber descending, so [0] is the latest
+                    const latestVersion = allVersions[0];
+                    await this.updatePrompt(prompt.id, { currentVersionId: latestVersion.id });
                 }
-                results.push(prompt);
+
+                const updatedPrompt = await this.getPrompt(prompt.id);
+                results.push(updatedPrompt);
             }
             return results;
         },
@@ -299,6 +317,459 @@
     };
 
     // ========================================
+    // Firebase Integration
+    // ========================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyAmt4mVNacdYyIt67lMQYpzgS4AFsgVLFg",
+        authDomain: "promptshelf-75139.firebaseapp.com",
+        projectId: "promptshelf-75139",
+        storageBucket: "promptshelf-75139.firebasestorage.app",
+        messagingSenderId: "160331377328",
+        appId: "1:160331377328:web:792933eb3e090b9e982975",
+        measurementId: "G-0KKG8DQGKS"
+    };
+
+    let firebaseApp = null;
+    let firebaseAuth = null;
+    let firebaseDb = null;
+
+    const Firebase = {
+        init() {
+            if (typeof firebase === 'undefined') {
+                console.warn('Firebase SDK not loaded');
+                return false;
+            }
+            try {
+                firebaseApp = firebase.initializeApp(firebaseConfig);
+                firebaseAuth = firebase.auth();
+                firebaseDb = firebase.firestore();
+                return true;
+            } catch (error) {
+                console.error('Firebase init error:', error);
+                return false;
+            }
+        },
+
+        isInitialized() {
+            return firebaseApp !== null;
+        },
+
+        async signUp(email, password) {
+            if (!firebaseAuth) throw new Error('Firebase not initialized');
+            const userCredential = await firebaseAuth.createUserWithEmailAndPassword(email, password);
+            return userCredential.user;
+        },
+
+        async signIn(email, password) {
+            if (!firebaseAuth) throw new Error('Firebase not initialized');
+            const userCredential = await firebaseAuth.signInWithEmailAndPassword(email, password);
+            return userCredential.user;
+        },
+
+        async signOut() {
+            if (!firebaseAuth) throw new Error('Firebase not initialized');
+            await firebaseAuth.signOut();
+        },
+
+        onAuthChange(callback) {
+            if (!firebaseAuth) return () => {};
+            return firebaseAuth.onAuthStateChanged(callback);
+        },
+
+        getCurrentUser() {
+            return firebaseAuth?.currentUser || null;
+        }
+    };
+
+    // ========================================
+    // Cloud Database (Firestore) - Mirrors DB module exactly
+    // ========================================
+    const CloudDB = {
+        getUserDoc() {
+            const user = Firebase.getCurrentUser();
+            if (!user || !firebaseDb) return null;
+            return firebaseDb.collection('users').doc(user.uid);
+        },
+
+        // ========== PROMPTS ==========
+        async getAllPrompts() {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return [];
+
+            const snapshot = await userDoc.collection('prompts')
+                .orderBy('updatedAt', 'desc')
+                .get();
+
+            return snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        },
+
+        async getPrompt(id) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return null;
+
+            const doc = await userDoc.collection('prompts').doc(String(id)).get();
+            if (!doc.exists) return null;
+
+            return { id: doc.id, ...doc.data() };
+        },
+
+        async createPrompt(data) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) throw new Error('Not authenticated');
+
+            const prompt = {
+                title: data.title || 'Untitled Prompt',
+                description: data.description || '',
+                tags: data.tags || [],
+                currentVersionId: null,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+
+            const docRef = await userDoc.collection('prompts').add(prompt);
+            return { id: docRef.id, ...prompt };
+        },
+
+        async updatePrompt(id, data) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) throw new Error('Not authenticated');
+
+            const existing = await this.getPrompt(id);
+            if (!existing) throw new Error('Prompt not found');
+
+            const updated = { ...data, updatedAt: Date.now() };
+            await userDoc.collection('prompts').doc(String(id)).update(updated);
+
+            return { ...existing, ...updated };
+        },
+
+        async deletePrompt(id) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return;
+
+            // Delete all versions first
+            const versions = await this.getVersions(id);
+            for (const version of versions) {
+                await this.deleteVersion(version.id);
+            }
+
+            // Delete the prompt
+            await userDoc.collection('prompts').doc(String(id)).delete();
+        },
+
+        // Batch delete all prompts and versions (for import clear)
+        async clearAllPrompts() {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return;
+
+            console.log('CloudDB.clearAllPrompts: Starting batch delete');
+
+            // Get all prompts and versions
+            const [promptsSnapshot, versionsSnapshot, tagsSnapshot] = await Promise.all([
+                userDoc.collection('prompts').get(),
+                userDoc.collection('versions').get(),
+                userDoc.collection('tags').get()
+            ]);
+
+            console.log('CloudDB.clearAllPrompts: Deleting', promptsSnapshot.size, 'prompts,', versionsSnapshot.size, 'versions,', tagsSnapshot.size, 'tags');
+
+            // Firestore batches have a limit of 500 operations
+            const BATCH_LIMIT = 500;
+            let batch = firebaseDb.batch();
+            let operationCount = 0;
+
+            const commitBatchIfNeeded = async () => {
+                if (operationCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batch = firebaseDb.batch();
+                    operationCount = 0;
+                }
+            };
+
+            // Delete all prompts
+            for (const doc of promptsSnapshot.docs) {
+                batch.delete(doc.ref);
+                operationCount++;
+                await commitBatchIfNeeded();
+            }
+
+            // Delete all versions
+            for (const doc of versionsSnapshot.docs) {
+                batch.delete(doc.ref);
+                operationCount++;
+                await commitBatchIfNeeded();
+            }
+
+            // Delete all tags
+            for (const doc of tagsSnapshot.docs) {
+                batch.delete(doc.ref);
+                operationCount++;
+                await commitBatchIfNeeded();
+            }
+
+            // Commit remaining
+            if (operationCount > 0) {
+                await batch.commit();
+            }
+
+            console.log('CloudDB.clearAllPrompts: Done');
+        },
+
+        // ========== VERSIONS ==========
+        async getVersions(promptId) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return [];
+
+            const snapshot = await userDoc.collection('versions')
+                .where('promptId', '==', String(promptId))
+                .get();
+
+            const versions = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // Sort by versionNumber descending (newest first)
+            return versions.sort((a, b) => b.versionNumber - a.versionNumber);
+        },
+
+        async getVersion(id) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return null;
+
+            const doc = await userDoc.collection('versions').doc(String(id)).get();
+            if (!doc.exists) return null;
+
+            return { id: doc.id, ...doc.data() };
+        },
+
+        async createVersion(data) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) throw new Error('Not authenticated');
+
+            const version = {
+                promptId: String(data.promptId),
+                body: data.body || '',
+                versionNumber: data.versionNumber || 1,
+                note: data.note || '',
+                createdAt: Date.now()
+            };
+
+            const docRef = await userDoc.collection('versions').add(version);
+            return { id: docRef.id, ...version };
+        },
+
+        async deleteVersion(id) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return;
+
+            await userDoc.collection('versions').doc(String(id)).delete();
+        },
+
+        // ========== TAGS ==========
+        async getAllTags() {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return [];
+
+            const snapshot = await userDoc.collection('tags').get();
+            const tags = snapshot.docs.map(doc => ({
+                name: doc.id,
+                ...doc.data()
+            }));
+
+            return tags.sort((a, b) => b.usageCount - a.usageCount);
+        },
+
+        async updateTagUsage(tagName, delta) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return;
+
+            const tagRef = userDoc.collection('tags').doc(tagName);
+            const tagDoc = await tagRef.get();
+
+            if (tagDoc.exists) {
+                const existing = tagDoc.data();
+                const newCount = Math.max(0, (existing.usageCount || 0) + delta);
+                if (newCount === 0) {
+                    await tagRef.delete();
+                } else {
+                    await tagRef.update({ usageCount: newCount });
+                }
+                return { name: tagName, usageCount: newCount };
+            } else if (delta > 0) {
+                const newTag = { usageCount: delta };
+                await tagRef.set(newTag);
+                return { name: tagName, usageCount: delta };
+            }
+        },
+
+        // ========== SETTINGS ==========
+        async getSetting(key) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return null;
+
+            const doc = await userDoc.collection('settings').doc(key).get();
+            return doc.exists ? doc.data().value : null;
+        },
+
+        async setSetting(key, value) {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return;
+
+            await userDoc.collection('settings').doc(key).set({ value });
+        },
+
+        // ========== IMPORT ==========
+        async importPrompts(promptsData) {
+            console.log('CloudDB.importPrompts: Starting import of', promptsData.length, 'prompts');
+            const userDoc = this.getUserDoc();
+            if (!userDoc) throw new Error('Not authenticated');
+
+            const results = [];
+
+            for (let i = 0; i < promptsData.length; i++) {
+                const promptData = promptsData[i];
+                console.log(`CloudDB.importPrompts: Processing prompt ${i + 1}/${promptsData.length}:`, promptData.title);
+
+                try {
+                    // Create prompt document
+                    const promptRef = userDoc.collection('prompts').doc();
+                    const promptId = promptRef.id;
+                    const now = Date.now();
+
+                    const promptDoc = {
+                        title: promptData.title || 'Untitled',
+                        description: promptData.description || '',
+                        tags: promptData.tags || [],
+                        currentVersionId: null,
+                        createdAt: now,
+                        updatedAt: now
+                    };
+
+                    // Create versions and track the latest
+                    const versions = promptData.versions || [];
+                    let latestVersionId = null;
+                    let highestVersionNum = 0;
+
+                    // Use batch write for speed
+                    const batch = firebaseDb.batch();
+                    batch.set(promptRef, promptDoc);
+
+                    for (const versionData of versions) {
+                        const versionRef = userDoc.collection('versions').doc();
+                        const versionDoc = {
+                            promptId: promptId,
+                            body: versionData.body || '',
+                            versionNumber: versionData.versionNumber || 1,
+                            note: versionData.note || '',
+                            createdAt: now
+                        };
+                        batch.set(versionRef, versionDoc);
+
+                        if (versionDoc.versionNumber >= highestVersionNum) {
+                            highestVersionNum = versionDoc.versionNumber;
+                            latestVersionId = versionRef.id;
+                        }
+                    }
+
+                    // Update prompt with currentVersionId
+                    if (latestVersionId) {
+                        batch.update(promptRef, { currentVersionId: latestVersionId });
+                    }
+
+                    // Commit the batch
+                    await batch.commit();
+                    console.log('CloudDB.importPrompts: Created prompt', promptId, 'with', versions.length, 'versions');
+
+                    // Update tags (can't be batched easily due to read-modify-write)
+                    for (const tag of (promptData.tags || [])) {
+                        await this.updateTagUsage(tag, 1);
+                    }
+
+                    results.push({ id: promptId, ...promptDoc, currentVersionId: latestVersionId });
+                } catch (err) {
+                    console.error('CloudDB.importPrompts: Error importing prompt:', promptData.title, err);
+                    throw err;
+                }
+            }
+
+            console.log('CloudDB.importPrompts: Import complete, imported', results.length, 'prompts');
+            return results;
+        },
+
+        async exportPrompt(promptId) {
+            const prompt = await this.getPrompt(promptId);
+            if (!prompt) return null;
+
+            const versions = await this.getVersions(promptId);
+            return {
+                title: prompt.title,
+                description: prompt.description,
+                tags: prompt.tags,
+                versions: versions.map(v => ({
+                    body: v.body,
+                    versionNumber: v.versionNumber,
+                    note: v.note,
+                    createdAt: new Date(v.createdAt).toISOString()
+                }))
+            };
+        },
+
+        async exportAllPrompts() {
+            const prompts = await this.getAllPrompts();
+            const exported = [];
+            for (const prompt of prompts) {
+                const data = await this.exportPrompt(prompt.id);
+                if (data) exported.push(data);
+            }
+            return exported;
+        },
+
+        // ========== UTILITY ==========
+        async clearAll() {
+            const userDoc = this.getUserDoc();
+            if (!userDoc) return;
+
+            // Delete all prompts (which cascades to versions)
+            const prompts = await this.getAllPrompts();
+            for (const prompt of prompts) {
+                await this.deletePrompt(prompt.id);
+            }
+
+            // Delete all tags
+            const tags = await this.getAllTags();
+            for (const tag of tags) {
+                await userDoc.collection('tags').doc(tag.name).delete();
+            }
+        }
+    };
+
+    // ========================================
+    // App Mode Detection
+    // ========================================
+    const AppMode = {
+        isLocal() {
+            // Running locally via file:// protocol
+            return window.location.protocol === 'file:';
+        },
+
+        isWeb() {
+            // Running on web (https:// or http://)
+            return window.location.protocol.startsWith('http');
+        },
+
+        // Get the active database based on mode
+        getDB() {
+            // Local mode: use IndexedDB
+            // Web mode: use CloudDB (requires login)
+            return this.isLocal() ? DB : CloudDB;
+        }
+    };
+
+    // ========================================
     // State Management
     // ========================================
     const state = {
@@ -312,7 +783,10 @@
         searchQuery: '',
         filterTags: [],
         showVersionHistory: false,
-        editMode: false
+        editMode: false,
+        user: null,
+        syncStatus: 'idle', // 'idle' | 'syncing' | 'error'
+        authMode: 'signin' // 'signin' | 'signup'
     };
 
     const listeners = new Set();
@@ -533,6 +1007,24 @@
             elements.exportBtn = document.getElementById('export-btn');
             elements.importBtn = document.getElementById('import-btn');
             elements.importInput = document.getElementById('import-input');
+            // Auth elements
+            elements.authBtn = document.getElementById('auth-btn');
+            elements.userMenu = document.getElementById('user-menu');
+            elements.userMenuBtn = document.getElementById('user-menu-btn');
+            elements.userDropdown = document.getElementById('user-dropdown');
+            elements.userEmail = document.getElementById('user-email');
+            elements.syncStatus = document.getElementById('sync-status');
+            elements.syncNowBtn = document.getElementById('sync-now-btn');
+            elements.logoutBtn = document.getElementById('logout-btn');
+            elements.authModal = document.getElementById('auth-modal');
+            elements.authForm = document.getElementById('auth-form');
+            elements.authEmail = document.getElementById('auth-email');
+            elements.authPassword = document.getElementById('auth-password');
+            elements.authError = document.getElementById('auth-error');
+            elements.authSubmitBtn = document.getElementById('auth-submit-btn');
+            elements.authModalTitle = document.getElementById('auth-modal-title');
+            elements.authSwitchText = document.getElementById('auth-switch-text');
+            elements.authSwitchBtn = document.getElementById('auth-switch-btn');
         },
 
         getElements() { return elements; },
@@ -827,6 +1319,109 @@
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>' :
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
             }
+        },
+
+        // Auth UI Methods
+        renderAuthState(user, syncStatus) {
+            if (user) {
+                // User is logged in - show user menu, hide auth button
+                if (elements.authBtn) elements.authBtn.classList.add('hidden');
+                if (elements.userMenu) elements.userMenu.classList.remove('hidden');
+                if (elements.userEmail) elements.userEmail.textContent = user.email;
+
+                // Update sync status
+                if (elements.syncStatus) {
+                    elements.syncStatus.className = 'sync-status';
+                    if (syncStatus === 'syncing') {
+                        elements.syncStatus.classList.add('syncing');
+                        elements.syncStatus.textContent = 'Syncing...';
+                    } else if (syncStatus === 'error') {
+                        elements.syncStatus.classList.add('error');
+                        elements.syncStatus.textContent = 'Sync error';
+                    } else {
+                        elements.syncStatus.textContent = 'Synced';
+                    }
+                }
+            } else {
+                // User is logged out - show auth button, hide user menu
+                if (elements.authBtn) elements.authBtn.classList.remove('hidden');
+                if (elements.userMenu) elements.userMenu.classList.add('hidden');
+            }
+        },
+
+        showAuthModal(mode = 'signin') {
+            if (!elements.authModal) return;
+
+            elements.authModal.classList.remove('hidden');
+            document.body.classList.add('modal-open');
+
+            // Reset form
+            if (elements.authForm) elements.authForm.reset();
+            if (elements.authError) elements.authError.classList.add('hidden');
+
+            this.updateAuthMode(mode);
+            elements.authEmail?.focus();
+        },
+
+        hideAuthModal() {
+            if (!elements.authModal) return;
+            elements.authModal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+        },
+
+        updateAuthMode(mode) {
+            if (elements.authModalTitle) {
+                elements.authModalTitle.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+            }
+            if (elements.authSubmitBtn) {
+                elements.authSubmitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+            }
+            if (elements.authSwitchText) {
+                elements.authSwitchText.textContent = mode === 'signup'
+                    ? 'Already have an account?'
+                    : "Don't have an account?";
+            }
+            if (elements.authSwitchBtn) {
+                elements.authSwitchBtn.textContent = mode === 'signup' ? 'Sign In' : 'Sign Up';
+            }
+        },
+
+        showAuthError(message) {
+            if (elements.authError) {
+                elements.authError.textContent = message;
+                elements.authError.classList.remove('hidden');
+            }
+        },
+
+        hideAuthError() {
+            if (elements.authError) {
+                elements.authError.classList.add('hidden');
+            }
+        },
+
+        setAuthLoading(loading) {
+            if (elements.authSubmitBtn) {
+                elements.authSubmitBtn.disabled = loading;
+                elements.authSubmitBtn.classList.toggle('loading', loading);
+            }
+        },
+
+        showUserDropdown() {
+            if (elements.userDropdown) {
+                elements.userDropdown.classList.remove('hidden');
+            }
+        },
+
+        hideUserDropdown() {
+            if (elements.userDropdown) {
+                elements.userDropdown.classList.add('hidden');
+            }
+        },
+
+        toggleUserDropdown() {
+            if (elements.userDropdown) {
+                elements.userDropdown.classList.toggle('hidden');
+            }
         }
     };
 
@@ -845,30 +1440,204 @@
     }, 2000);
 
     const App = {
+        loginMode: 'signin', // 'signin' or 'signup'
+
         async init() {
             try {
-                await DB.init();
                 UI.cacheElements();
 
+                // Cache screen elements
+                elements.loadingScreen = document.getElementById('loading-screen');
+                elements.loginScreen = document.getElementById('login-screen');
+                elements.appContainer = document.getElementById('app-container');
+
+                // Cache login form elements
+                elements.loginForm = document.getElementById('login-form');
+                elements.loginEmail = document.getElementById('login-email');
+                elements.loginPassword = document.getElementById('login-password');
+                elements.loginError = document.getElementById('login-error');
+                elements.loginSubmitBtn = document.getElementById('login-submit-btn');
+                elements.loginSwitchText = document.getElementById('login-switch-text');
+                elements.loginSwitchBtn = document.getElementById('login-switch-btn');
+
+                // Bind login form events
+                this.bindLoginEvents();
+
+                // Initialize Firebase
+                Firebase.init();
+
+                // Local mode: use IndexedDB, no login required
+                if (AppMode.isLocal()) {
+                    await DB.init();
+                    await this.loadData();
+                    this.hideLoading();
+                    this.showApp();
+
+                    State.subscribe(() => this.render());
+                    this.bindEvents();
+                    this.render();
+                } else {
+                    // Web mode: require login - wait for auth state
+                    await DB.init();
+
+                    // Set up auth state listener
+                    Firebase.onAuthChange(async (user) => {
+                        State.set({ user });
+
+                        if (user) {
+                            // User logged in - load data then show app
+                            await this.loadData();
+                            this.hideLoading();
+                            this.showApp();
+                            UI.showToast('Signed in!', 'success');
+                        } else {
+                            // User logged out - show login screen
+                            this.hideLoading();
+                            this.showLoginScreen();
+                        }
+                    });
+
+                    State.subscribe(() => this.render());
+                    this.bindEvents();
+                    this.render();
+                }
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+                this.hideLoading();
+                UI.showToast('Failed to initialize app', 'error');
+            }
+        },
+
+        bindLoginEvents() {
+            // Form submission
+            elements.loginForm?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.handleLoginSubmit();
+            });
+
+            // Toggle between sign in and sign up
+            elements.loginSwitchBtn?.addEventListener('click', () => {
+                this.toggleLoginMode();
+            });
+        },
+
+        async handleLoginSubmit() {
+            const email = elements.loginEmail?.value.trim();
+            const password = elements.loginPassword?.value;
+
+            if (!email || !password) {
+                this.showLoginError('Please fill in all fields');
+                return;
+            }
+
+            // Disable button and show loading
+            elements.loginSubmitBtn.disabled = true;
+            elements.loginSubmitBtn.textContent = this.loginMode === 'signin' ? 'Signing In...' : 'Creating Account...';
+            this.hideLoginError();
+
+            try {
+                if (this.loginMode === 'signin') {
+                    await Firebase.signIn(email, password);
+                } else {
+                    await Firebase.signUp(email, password);
+                }
+                // Auth state listener will handle the rest
+            } catch (error) {
+                console.error('Auth error:', error);
+                this.showLoginError(this.getAuthErrorMessage(error.code));
+                elements.loginSubmitBtn.disabled = false;
+                elements.loginSubmitBtn.textContent = this.loginMode === 'signin' ? 'Sign In' : 'Sign Up';
+            }
+        },
+
+        getAuthErrorMessage(code) {
+            const messages = {
+                'auth/invalid-email': 'Invalid email address',
+                'auth/user-disabled': 'This account has been disabled',
+                'auth/user-not-found': 'No account found with this email',
+                'auth/wrong-password': 'Incorrect password',
+                'auth/email-already-in-use': 'An account already exists with this email',
+                'auth/weak-password': 'Password should be at least 6 characters',
+                'auth/invalid-credential': 'Invalid email or password',
+                'auth/too-many-requests': 'Too many attempts. Please try again later'
+            };
+            return messages[code] || 'Authentication failed. Please try again.';
+        },
+
+        showLoginError(message) {
+            if (elements.loginError) {
+                elements.loginError.textContent = message;
+                elements.loginError.classList.remove('hidden');
+            }
+        },
+
+        hideLoginError() {
+            if (elements.loginError) {
+                elements.loginError.classList.add('hidden');
+            }
+        },
+
+        toggleLoginMode() {
+            this.loginMode = this.loginMode === 'signin' ? 'signup' : 'signin';
+
+            if (this.loginMode === 'signin') {
+                elements.loginSubmitBtn.textContent = 'Sign In';
+                elements.loginSwitchText.textContent = "Don't have an account?";
+                elements.loginSwitchBtn.textContent = 'Sign Up';
+            } else {
+                elements.loginSubmitBtn.textContent = 'Sign Up';
+                elements.loginSwitchText.textContent = 'Already have an account?';
+                elements.loginSwitchBtn.textContent = 'Sign In';
+            }
+
+            this.hideLoginError();
+            elements.loginPassword.value = '';
+        },
+
+        hideLoading() {
+            if (elements.loadingScreen) elements.loadingScreen.classList.add('hidden');
+        },
+
+        showLoginScreen() {
+            if (elements.loadingScreen) elements.loadingScreen.classList.add('hidden');
+            if (elements.loginScreen) elements.loginScreen.classList.remove('hidden');
+            if (elements.appContainer) elements.appContainer.classList.add('hidden');
+        },
+
+        showApp() {
+            if (elements.loadingScreen) elements.loadingScreen.classList.add('hidden');
+            if (elements.loginScreen) elements.loginScreen.classList.add('hidden');
+            if (elements.appContainer) elements.appContainer.classList.remove('hidden');
+        },
+
+        async loadData() {
+            try {
+                const activeDB = AppMode.getDB();
                 const [prompts, tags, darkMode] = await Promise.all([
-                    DB.getAllPrompts(),
-                    DB.getAllTags(),
-                    DB.getSetting('darkMode')
+                    activeDB.getAllPrompts(),
+                    activeDB.getAllTags(),
+                    activeDB.getSetting('darkMode')
                 ]);
 
-                State.set({ prompts, allTags: tags, darkMode: darkMode || false });
+                State.set({
+                    prompts,
+                    allTags: tags,
+                    darkMode: darkMode || false,
+                    currentPromptId: null,
+                    currentVersion: null,
+                    versions: [],
+                    isDirty: false,
+                    showVersionHistory: false,
+                    editMode: false
+                });
                 UI.setDarkMode(State.get().darkMode);
-
-                State.subscribe(() => this.render());
-                this.bindEvents();
-                this.render();
 
                 if (prompts.length > 0) {
                     await this.selectPrompt(prompts[0].id);
                 }
             } catch (error) {
-                console.error('Failed to initialize:', error);
-                UI.showToast('Failed to initialize app', 'error');
+                console.error('Failed to load data:', error);
+                UI.showToast('Failed to load data', 'error');
             }
         },
 
@@ -880,6 +1649,7 @@
             UI.renderPromptList(filteredPrompts, s.currentPromptId);
             UI.renderTagFilter(s.allTags, s.filterTags);
             UI.renderEditor(currentPrompt, s.currentVersion, s.isDirty, s.editMode);
+            UI.renderAuthState(s.user, s.syncStatus);
 
             if (currentPrompt) {
                 UI.renderPromptTags(currentPrompt.tags || [], s.editMode);
@@ -899,7 +1669,7 @@
 
             elements.promptList?.addEventListener('click', (e) => {
                 const item = e.target.closest('.prompt-item');
-                if (item) this.selectPrompt(parseInt(item.dataset.id, 10));
+                if (item) this.selectPrompt(item.dataset.id);
             });
 
             elements.tagFilter?.addEventListener('click', (e) => {
@@ -942,6 +1712,26 @@
             elements.importInput?.addEventListener('change', (e) => this.handleImport(e));
             elements.darkModeToggle?.addEventListener('click', () => this.handleToggleDarkMode());
 
+            // Auth events
+            elements.authBtn?.addEventListener('click', () => this.handleShowAuthModal());
+            elements.userMenuBtn?.addEventListener('click', () => UI.toggleUserDropdown());
+            elements.logoutBtn?.addEventListener('click', () => this.handleLogout());
+            elements.syncNowBtn?.addEventListener('click', () => this.handleSyncNow());
+            elements.authForm?.addEventListener('submit', (e) => this.handleAuthSubmit(e));
+            elements.authSwitchBtn?.addEventListener('click', () => this.handleAuthModeSwitch());
+            elements.authModal?.addEventListener('click', (e) => {
+                if (e.target === elements.authModal || e.target.closest('[data-action="close-auth-modal"]')) {
+                    UI.hideAuthModal();
+                }
+            });
+
+            // Close user dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#user-menu')) {
+                    UI.hideUserDropdown();
+                }
+            });
+
             // Click on placeholder to edit it
             elements.bodyDisplay?.addEventListener('click', (e) => {
                 const placeholder = e.target.closest('.placeholder');
@@ -969,11 +1759,12 @@
 
         async handleNewPrompt() {
             try {
-                const prompt = await DB.createPrompt({ title: 'Untitled Prompt' });
-                const version = await DB.createVersion({ promptId: prompt.id, body: '', versionNumber: 1 });
-                await DB.updatePrompt(prompt.id, { currentVersionId: version.id });
+                const activeDB = AppMode.getDB();
+                const prompt = await activeDB.createPrompt({ title: 'Untitled Prompt' });
+                const version = await activeDB.createVersion({ promptId: prompt.id, body: '', versionNumber: 1 });
+                await activeDB.updatePrompt(prompt.id, { currentVersionId: version.id });
 
-                const prompts = await DB.getAllPrompts();
+                const prompts = await activeDB.getAllPrompts();
                 State.set({ prompts });
                 await this.selectPrompt(prompt.id);
 
@@ -990,13 +1781,19 @@
 
         async selectPrompt(id) {
             try {
-                const prompt = await DB.getPrompt(id);
+                const activeDB = AppMode.getDB();
+
+                // Fetch prompt and versions in parallel for speed
+                const [prompt, versions] = await Promise.all([
+                    activeDB.getPrompt(id),
+                    activeDB.getVersions(id)
+                ]);
+
                 if (!prompt) return;
 
                 // Clear temporary placeholder fills when switching prompts
                 this.placeholderFills = {};
 
-                const versions = await DB.getVersions(id);
                 const currentVersion = versions.find(v => v.id === prompt.currentVersionId) || versions[0];
 
                 State.set({
@@ -1020,28 +1817,29 @@
             if (!s.currentPromptId || !s.isDirty) return;
 
             try {
+                const activeDB = AppMode.getDB();
                 const title = elements.titleInput?.value.trim() || 'Untitled Prompt';
                 const description = elements.descriptionInput?.value.trim() || '';
                 const body = elements.bodyInput?.value || '';
 
-                await DB.updatePrompt(s.currentPromptId, { title, description });
+                await activeDB.updatePrompt(s.currentPromptId, { title, description });
 
                 // Always create a new version on save
-                const versions = await DB.getVersions(s.currentPromptId);
+                const versions = await activeDB.getVersions(s.currentPromptId);
                 const maxVersion = versions.reduce((max, v) => Math.max(max, v.versionNumber), 0);
 
-                const newVersion = await DB.createVersion({
+                const newVersion = await activeDB.createVersion({
                     promptId: s.currentPromptId,
                     body,
                     versionNumber: maxVersion + 1
                 });
 
-                await DB.updatePrompt(s.currentPromptId, { currentVersionId: newVersion.id });
+                await activeDB.updatePrompt(s.currentPromptId, { currentVersionId: newVersion.id });
                 Utils.clearDraft(s.currentPromptId);
 
                 const [updatedPrompts, updatedVersions] = await Promise.all([
-                    DB.getAllPrompts(),
-                    DB.getVersions(s.currentPromptId)
+                    activeDB.getAllPrompts(),
+                    activeDB.getVersions(s.currentPromptId)
                 ]);
 
                 State.set({ prompts: updatedPrompts, versions: updatedVersions, currentVersion: newVersion, isDirty: false });
@@ -1107,9 +1905,10 @@
 
         refreshBodyDisplay() {
             const s = State.get();
-            if (!s.currentVersionId || s.editMode) return;
+            if (!s.currentVersion?.id || s.editMode) return;
 
-            DB.getVersion(s.currentVersionId).then(version => {
+            const activeDB = AppMode.getDB();
+            activeDB.getVersion(s.currentVersion.id).then(version => {
                 if (version && elements.bodyDisplay) {
                     elements.bodyDisplay.innerHTML = UI.highlightPlaceholders(version.body || '', this.placeholderFills);
                 }
@@ -1154,28 +1953,29 @@
 
             UI.showVersionNoteDialog(async (note) => {
                 try {
+                    const activeDB = AppMode.getDB();
                     const title = elements.titleInput?.value.trim() || 'Untitled Prompt';
                     const description = elements.descriptionInput?.value.trim() || '';
                     const body = elements.bodyInput?.value || '';
 
-                    await DB.updatePrompt(s.currentPromptId, { title, description });
+                    await activeDB.updatePrompt(s.currentPromptId, { title, description });
 
-                    const versions = await DB.getVersions(s.currentPromptId);
+                    const versions = await activeDB.getVersions(s.currentPromptId);
                     const maxVersion = versions.reduce((max, v) => Math.max(max, v.versionNumber), 0);
 
-                    const newVersion = await DB.createVersion({
+                    const newVersion = await activeDB.createVersion({
                         promptId: s.currentPromptId,
                         body,
                         versionNumber: maxVersion + 1,
                         note
                     });
 
-                    await DB.updatePrompt(s.currentPromptId, { currentVersionId: newVersion.id });
+                    await activeDB.updatePrompt(s.currentPromptId, { currentVersionId: newVersion.id });
                     Utils.clearDraft(s.currentPromptId);
 
                     const [prompts, updatedVersions] = await Promise.all([
-                        DB.getAllPrompts(),
-                        DB.getVersions(s.currentPromptId)
+                        activeDB.getAllPrompts(),
+                        activeDB.getVersions(s.currentPromptId)
                     ]);
 
                     State.set({ prompts, versions: updatedVersions, currentVersion: newVersion, isDirty: false });
@@ -1192,12 +1992,13 @@
             if (!s.currentPromptId) return;
 
             try {
-                const version = await DB.getVersion(versionId);
+                const activeDB = AppMode.getDB();
+                const version = await activeDB.getVersion(versionId);
                 if (!version) return;
 
-                await DB.updatePrompt(s.currentPromptId, { currentVersionId: versionId });
+                await activeDB.updatePrompt(s.currentPromptId, { currentVersionId: versionId });
 
-                const prompts = await DB.getAllPrompts();
+                const prompts = await activeDB.getAllPrompts();
                 State.set({ prompts, currentVersion: version, isDirty: false });
                 UI.showToast(`Restored to v${version.versionNumber}`);
             } catch (error) {
@@ -1211,7 +2012,8 @@
             if (!s.currentVersion) return;
 
             try {
-                const compareVersion = await DB.getVersion(versionId);
+                const activeDB = AppMode.getDB();
+                const compareVersion = await activeDB.getVersion(versionId);
                 if (!compareVersion) return;
 
                 const isOlder = compareVersion.versionNumber < s.currentVersion.versionNumber;
@@ -1236,18 +2038,21 @@
             if (!s.currentPromptId) return;
 
             const prompt = State.getCurrentPrompt();
+            const promptIdToDelete = s.currentPromptId;
+
             UI.showConfirmDialog(`Delete "${prompt?.title}"?`, async () => {
                 try {
+                    const activeDB = AppMode.getDB();
                     for (const tag of (prompt?.tags || [])) {
-                        await DB.updateTagUsage(tag, -1);
+                        await activeDB.updateTagUsage(tag, -1);
                     }
 
-                    await DB.deletePrompt(s.currentPromptId);
-                    Utils.clearDraft(s.currentPromptId);
+                    await activeDB.deletePrompt(promptIdToDelete);
+                    Utils.clearDraft(promptIdToDelete);
 
                     const [prompts, tags] = await Promise.all([
-                        DB.getAllPrompts(),
-                        DB.getAllTags()
+                        activeDB.getAllPrompts(),
+                        activeDB.getAllTags()
                     ]);
 
                     State.set({
@@ -1327,13 +2132,14 @@
             if (prompt.tags?.includes(normalizedTag)) return;
 
             try {
+                const activeDB = AppMode.getDB();
                 const newTags = [...(prompt.tags || []), normalizedTag];
-                await DB.updatePrompt(s.currentPromptId, { tags: newTags });
-                await DB.updateTagUsage(normalizedTag, 1);
+                await activeDB.updatePrompt(s.currentPromptId, { tags: newTags });
+                await activeDB.updateTagUsage(normalizedTag, 1);
 
                 const [prompts, tags] = await Promise.all([
-                    DB.getAllPrompts(),
-                    DB.getAllTags()
+                    activeDB.getAllPrompts(),
+                    activeDB.getAllTags()
                 ]);
 
                 State.set({ prompts, allTags: tags });
@@ -1353,13 +2159,14 @@
             if (!prompt) return;
 
             try {
+                const activeDB = AppMode.getDB();
                 const newTags = (prompt.tags || []).filter(t => t !== tagName);
-                await DB.updatePrompt(s.currentPromptId, { tags: newTags });
-                await DB.updateTagUsage(tagName, -1);
+                await activeDB.updatePrompt(s.currentPromptId, { tags: newTags });
+                await activeDB.updateTagUsage(tagName, -1);
 
                 const [prompts, tags] = await Promise.all([
-                    DB.getAllPrompts(),
-                    DB.getAllTags()
+                    activeDB.getAllPrompts(),
+                    activeDB.getAllTags()
                 ]);
 
                 State.set({ prompts, allTags: tags });
@@ -1371,27 +2178,67 @@
 
         async handleExport() {
             const s = State.get();
+            const hasCurrentPrompt = !!s.currentPromptId;
+
+            // Show export options dialog
+            UI.showModal(`
+                <div class="export-dialog">
+                    <h3>Export Prompts</h3>
+                    <p>Choose what to export:</p>
+                    <div class="export-options">
+                        ${hasCurrentPrompt ? `
+                            <button class="btn secondary full-width" data-action="export-current">
+                                Export Current Prompt
+                            </button>
+                        ` : ''}
+                        <button class="btn primary full-width" data-action="export-all">
+                            Export All Prompts (${s.prompts.length})
+                        </button>
+                    </div>
+                    <div class="dialog-actions" style="margin-top: 16px;">
+                        <button class="btn secondary" data-action="close-modal">Cancel</button>
+                    </div>
+                </div>
+            `);
+
+            // Add event listeners for export options
+            const modalContent = document.getElementById('modal-content');
+            modalContent.querySelector('[data-action="export-current"]')?.addEventListener('click', async () => {
+                UI.hideModal();
+                await this.doExport('current');
+            });
+            modalContent.querySelector('[data-action="export-all"]')?.addEventListener('click', async () => {
+                UI.hideModal();
+                await this.doExport('all');
+            });
+        },
+
+        async doExport(type) {
+            const s = State.get();
 
             try {
+                const activeDB = AppMode.getDB();
                 let data, filename;
 
-                if (s.currentPromptId) {
-                    const promptData = await DB.exportPrompt(s.currentPromptId);
+                if (type === 'current' && s.currentPromptId) {
+                    const promptData = await activeDB.exportPrompt(s.currentPromptId);
                     data = { version: '1.0', exportedAt: new Date().toISOString(), prompts: [promptData] };
                     filename = `promptshelf-${State.getCurrentPrompt()?.title?.toLowerCase().replace(/\s+/g, '-') || 'prompt'}.json`;
                 } else {
-                    const allPrompts = await DB.exportAllPrompts();
+                    const allPrompts = await activeDB.exportAllPrompts();
                     data = { version: '1.0', exportedAt: new Date().toISOString(), prompts: allPrompts };
-                    filename = 'promptshelf-export.json';
+                    filename = 'promptshelf-all-prompts.json';
                 }
 
                 Utils.downloadFile(JSON.stringify(data, null, 2), filename);
-                UI.showToast('Exported');
+                UI.showToast(`Exported ${data.prompts.length} prompt(s)`);
             } catch (error) {
                 console.error('Failed to export:', error);
                 UI.showToast('Failed to export', 'error');
             }
         },
+
+        pendingImportData: null,
 
         async handleImport(e) {
             const file = e.target.files?.[0];
@@ -1404,24 +2251,107 @@
                 const validation = Utils.validateImport(data);
                 if (!validation.valid) {
                     UI.showToast(validation.error, 'error');
+                    e.target.value = '';
                     return;
                 }
 
-                await DB.importPrompts(data.prompts);
+                // Store import data for later
+                this.pendingImportData = data;
 
-                const [prompts, tags] = await Promise.all([
-                    DB.getAllPrompts(),
-                    DB.getAllTags()
-                ]);
+                const s = State.get();
+                const existingCount = s.prompts.length;
 
-                State.set({ prompts, allTags: tags });
-                UI.showToast(`Imported ${data.prompts.length} prompt(s)`);
+                // Show import options dialog
+                UI.showModal(`
+                    <div class="import-dialog">
+                        <h3>Import Prompts</h3>
+                        <p>Found <strong>${data.prompts.length}</strong> prompt(s) in file.</p>
+                        ${existingCount > 0 ? `
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="import-clear-existing">
+                                <span>Remove existing ${existingCount} prompt(s) before importing</span>
+                            </label>
+                        ` : ''}
+                        <div class="dialog-actions" style="margin-top: 20px;">
+                            <button class="btn secondary" data-action="close-modal">Cancel</button>
+                            <button class="btn primary" id="confirm-import-btn">Import</button>
+                        </div>
+                    </div>
+                `);
+
+                // Handle import confirmation
+                const confirmBtn = document.getElementById('confirm-import-btn');
+                if (confirmBtn) {
+                    confirmBtn.addEventListener('click', () => this.doImport());
+                }
             } catch (error) {
-                console.error('Failed to import:', error);
+                console.error('Failed to parse import file:', error);
                 UI.showToast('Invalid file', 'error');
             }
 
             e.target.value = '';
+        },
+
+        async doImport() {
+            console.log('doImport: Starting');
+            const data = this.pendingImportData;
+            if (!data) {
+                console.error('doImport: No pending import data');
+                UI.showToast('No import data', 'error');
+                return;
+            }
+
+            // Read checkbox BEFORE hiding modal
+            const clearExisting = document.getElementById('import-clear-existing')?.checked || false;
+            console.log('doImport: clearExisting =', clearExisting);
+
+            UI.hideModal();
+
+            try {
+                UI.showToast('Importing...', 'info');
+                const activeDB = AppMode.getDB();
+                console.log('doImport: Using', AppMode.isLocal() ? 'local DB' : 'CloudDB');
+
+                // Clear existing prompts if checkbox is checked
+                if (clearExisting) {
+                    console.log('doImport: Clearing existing prompts (batch delete)');
+                    await activeDB.clearAllPrompts();
+                    console.log('doImport: Cleared existing prompts');
+                }
+
+                console.log('doImport: Calling importPrompts with', data.prompts.length, 'prompts');
+                const importedPrompts = await activeDB.importPrompts(data.prompts);
+                console.log('doImport: importPrompts returned', importedPrompts.length, 'prompts');
+
+                console.log('doImport: Fetching updated prompts and tags');
+                const [prompts, tags] = await Promise.all([
+                    activeDB.getAllPrompts(),
+                    activeDB.getAllTags()
+                ]);
+                console.log('doImport: Got', prompts.length, 'prompts and', tags.length, 'tags');
+
+                State.set({
+                    prompts,
+                    allTags: tags,
+                    currentPromptId: null,
+                    currentVersion: null,
+                    versions: []
+                });
+                console.log('doImport: State updated');
+
+                // Select first prompt if available
+                if (prompts.length > 0) {
+                    console.log('doImport: Selecting first prompt:', prompts[0].id);
+                    await this.selectPrompt(prompts[0].id);
+                }
+
+                this.pendingImportData = null;
+                console.log('doImport: Complete');
+                UI.showToast(`Imported ${data.prompts.length} prompt(s)${clearExisting ? ' (replaced existing)' : ''}`, 'success');
+            } catch (error) {
+                console.error('doImport: Failed:', error);
+                UI.showToast('Import failed: ' + error.message, 'error');
+            }
         },
 
         async handleToggleDarkMode() {
@@ -1429,7 +2359,84 @@
             const newMode = !s.darkMode;
             State.set({ darkMode: newMode });
             UI.setDarkMode(newMode);
-            await DB.setSetting('darkMode', newMode);
+            const activeDB = AppMode.getDB();
+            await activeDB.setSetting('darkMode', newMode);
+        },
+
+        // Auth handlers
+        handleShowAuthModal() {
+            UI.showAuthModal(State.get().authMode);
+        },
+
+        handleAuthModeSwitch() {
+            const currentMode = State.get().authMode;
+            const newMode = currentMode === 'signin' ? 'signup' : 'signin';
+            State.set({ authMode: newMode });
+            UI.updateAuthMode(newMode);
+            UI.hideAuthError();
+        },
+
+        async handleAuthSubmit(e) {
+            e.preventDefault();
+
+            const email = elements.authEmail?.value.trim();
+            const password = elements.authPassword?.value;
+            const mode = State.get().authMode;
+
+            if (!email || !password) {
+                UI.showAuthError('Please fill in all fields');
+                return;
+            }
+
+            UI.setAuthLoading(true);
+            UI.hideAuthError();
+
+            try {
+                if (mode === 'signup') {
+                    await Firebase.signUp(email, password);
+                    UI.showToast('Account created!', 'success');
+                } else {
+                    await Firebase.signIn(email, password);
+                    UI.showToast('Signed in!', 'success');
+                }
+                UI.hideAuthModal();
+            } catch (error) {
+                console.error('Auth error:', error);
+                let message = 'Authentication failed';
+                if (error.code === 'auth/email-already-in-use') {
+                    message = 'Email already in use';
+                } else if (error.code === 'auth/invalid-email') {
+                    message = 'Invalid email address';
+                } else if (error.code === 'auth/weak-password') {
+                    message = 'Password should be at least 6 characters';
+                } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                    message = 'Invalid email or password';
+                } else if (error.code === 'auth/invalid-credential') {
+                    message = 'Invalid email or password';
+                }
+                UI.showAuthError(message);
+            } finally {
+                UI.setAuthLoading(false);
+            }
+        },
+
+        async handleLogout() {
+            try {
+                await Firebase.signOut();
+                UI.hideUserDropdown();
+                UI.showToast('Signed out');
+            } catch (error) {
+                console.error('Logout error:', error);
+                UI.showToast('Failed to sign out', 'error');
+            }
+        },
+
+        async handleSyncNow() {
+            const user = State.get().user;
+            if (!user) return;
+
+            UI.hideUserDropdown();
+            UI.showToast('Data syncs automatically when logged in', 'info');
         },
 
         handleKeyboardShortcut(e) {
