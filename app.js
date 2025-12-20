@@ -1454,6 +1454,7 @@
     const App = {
         loginMode: 'signin', // 'signin' or 'signup'
         pendingCredential: null, // For linking accounts
+        pendingEmail: null, // Email for account linking
 
         async init() {
             try {
@@ -1591,12 +1592,15 @@
 
                 // Handle account linking when email already exists with different provider
                 if (error.code === 'auth/account-exists-with-different-credential') {
-                    this.pendingCredential = error.credential;
+                    // Get credential from error using the correct method
+                    const credential = firebase.auth.GithubAuthProvider.credentialFromError(error);
+                    this.pendingCredential = credential;
                     const email = error.customData?.email || error.email;
                     if (email) {
                         elements.loginEmail.value = email;
+                        this.pendingEmail = email;
                     }
-                    this.showLoginError('This email is already registered. Sign in with your password to link your GitHub account.');
+                    this.showLoginError('Sign in with your password to link your GitHub account.');
                 } else {
                     this.showLoginError(this.getAuthErrorMessage(error.code));
                 }
