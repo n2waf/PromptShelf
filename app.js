@@ -1779,9 +1779,12 @@
             elements.versionList?.addEventListener('click', async (e) => {
                 const btn = e.target.closest('button');
                 if (!btn) return;
-                const versionId = parseInt(btn.dataset.versionId, 10);
-                if (btn.dataset.action === 'restore') await this.handleRestore(versionId);
-                else if (btn.dataset.action === 'compare') await this.handleCompare(versionId);
+                const versionId = btn.dataset.versionId;
+                if (!versionId) return;
+                // Handle both string (Firestore) and number (IndexedDB) IDs
+                const parsedId = /^\d+$/.test(versionId) ? parseInt(versionId, 10) : versionId;
+                if (btn.dataset.action === 'restore') await this.handleRestore(parsedId);
+                else if (btn.dataset.action === 'compare') await this.handleCompare(parsedId);
             });
 
             document.addEventListener('keydown', (e) => this.handleKeyboardShortcut(e));
