@@ -3,9 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="PromptShelf - A local-first prompt management tool with versioning">
-    <title>PromptShelf</title>
-    <link rel="stylesheet" href="styles.css?v=20241220-1">
+    <meta name="description" content="PromptShelf - Store, organize, and version your AI prompts. Cloud sync, MCP integration for Claude Desktop, and automatic versioning.">
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://promptshelf-75139.web.app">
+    <meta property="og:title" content="PromptShelf - AI Prompt Management">
+    <meta property="og:description" content="Store, organize, and version your AI prompts. Cloud sync across devices. MCP integration for Claude Desktop.">
+    <meta property="og:image" content="https://promptshelf-75139.web.app/og-image.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://promptshelf-75139.web.app">
+    <meta name="twitter:title" content="PromptShelf - AI Prompt Management">
+    <meta name="twitter:description" content="Store, organize, and version your AI prompts. Cloud sync across devices. MCP integration for Claude Desktop.">
+    <meta name="twitter:image" content="https://promptshelf-75139.web.app/og-image.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' style='stop-color:%23667eea'/><stop offset='100%25' style='stop-color:%23764ba2'/></linearGradient></defs><rect width='100' height='100' rx='20' fill='url(%23g)'/><path d='M25 20h50a5 5 0 0 1 5 5v50a5 5 0 0 1-5 5H25a5 5 0 0 1-5-5V25a5 5 0 0 1 5-5z' fill='white' opacity='0.9'/><line x1='30' y1='35' x2='70' y2='35' stroke='%23667eea' stroke-width='4' stroke-linecap='round'/><line x1='30' y1='50' x2='60' y2='50' stroke='%23667eea' stroke-width='4' stroke-linecap='round' opacity='0.6'/><line x1='30' y1='65' x2='55' y2='65' stroke='%23667eea' stroke-width='4' stroke-linecap='round' opacity='0.4'/></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' style='stop-color:%23667eea'/><stop offset='100%25' style='stop-color:%23764ba2'/></linearGradient></defs><rect width='100' height='100' rx='20' fill='url(%23g)'/><path d='M25 20h50a5 5 0 0 1 5 5v50a5 5 0 0 1-5 5H25a5 5 0 0 1-5-5V25a5 5 0 0 1 5-5z' fill='white' opacity='0.9'/><line x1='30' y1='35' x2='70' y2='35' stroke='%23667eea' stroke-width='4' stroke-linecap='round'/><line x1='30' y1='50' x2='60' y2='50' stroke='%23667eea' stroke-width='4' stroke-linecap='round' opacity='0.6'/><line x1='30' y1='65' x2='55' y2='65' stroke='%23667eea' stroke-width='4' stroke-linecap='round' opacity='0.4'/></svg>">
+
+    <title>PromptShelf - AI Prompt Management</title>
+    <link rel="stylesheet" href="styles.css?v=20241220-2">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -20,36 +39,207 @@
         </div>
     </div>
 
-    <!-- Login Screen -->
+    <!-- Landing Page -->
     <div id="login-screen" class="login-screen hidden">
-        <div class="login-left">
-            <div class="login-branding">
-                <div class="login-illustration">
-                    <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="100" cy="100" r="80" fill="url(#grad1)" opacity="0.1"/>
-                        <rect x="60" y="50" width="80" height="100" rx="8" fill="white" stroke="#667eea" stroke-width="2"/>
-                        <line x1="70" y1="70" x2="130" y2="70" stroke="#667eea" stroke-width="2" opacity="0.5"/>
-                        <line x1="70" y1="85" x2="120" y2="85" stroke="#667eea" stroke-width="2" opacity="0.3"/>
-                        <line x1="70" y1="100" x2="110" y2="100" stroke="#667eea" stroke-width="2" opacity="0.3"/>
-                        <line x1="70" y1="115" x2="125" y2="115" stroke="#667eea" stroke-width="2" opacity="0.3"/>
-                        <circle cx="150" cy="60" r="20" fill="#667eea" opacity="0.2"/>
-                        <circle cx="50" cy="140" r="15" fill="#764ba2" opacity="0.2"/>
-                        <defs>
-                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#667eea"/>
-                                <stop offset="100%" style="stop-color:#764ba2"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
+        <div class="landing-page">
+            <!-- Hero Section -->
+            <section class="landing-hero">
+                <nav class="landing-nav">
+                    <div class="landing-logo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <line x1="10" y1="9" x2="8" y2="9"/>
+                        </svg>
+                        PromptShelf
+                    </div>
+                    <div class="landing-nav-links">
+                        <a href="https://github.com/n2waf/PromptShelf" target="_blank" class="nav-link">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                            </svg>
+                            GitHub
+                        </a>
+                    </div>
+                </nav>
+
+                <div class="hero-content">
+                    <h1 class="hero-title">Your AI Prompts,<br><span class="gradient-text">Organized & Versioned</span></h1>
+                    <p class="hero-subtitle">Store, organize, and track changes to your AI prompts. Cloud sync across devices. Direct integration with Claude Desktop via MCP.</p>
+                    <div class="hero-cta">
+                        <button id="hero-get-started" class="btn primary large">
+                            Get Started Free
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                                <polyline points="12 5 19 12 12 19"/>
+                            </svg>
+                        </button>
+                        <a href="https://github.com/n2waf/PromptShelf" target="_blank" class="btn secondary large">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                            </svg>
+                            View Source
+                        </a>
+                    </div>
+                    <p class="hero-note">Free forever. No credit card required.</p>
                 </div>
-                <h2>Manage Your Prompts</h2>
-                <p>Store, organize, and version your AI prompts in one place.</p>
-            </div>
+            </section>
+
+            <!-- Features Section -->
+            <section class="landing-features">
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <h3>Auto Versioning</h3>
+                        <p>Every save creates a new version. Compare changes with unified diff view.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                        </div>
+                        <h3>Claude Desktop Integration</h3>
+                        <p>Access your prompts directly in Claude via MCP. No copy-paste needed.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                        </div>
+                        <h3>Cloud Sync</h3>
+                        <p>Sign in with Google to sync your prompts across all your devices.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                                <polyline points="2 17 12 22 22 17"/>
+                                <polyline points="2 12 12 17 22 12"/>
+                            </svg>
+                        </div>
+                        <h3>Tags & Search</h3>
+                        <p>Organize with custom tags. Find any prompt instantly with search.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="3" y1="9" x2="21" y2="9"/>
+                                <line x1="9" y1="21" x2="9" y2="9"/>
+                            </svg>
+                        </div>
+                        <h3>Placeholder Quick-Fill</h3>
+                        <p>Click [placeholders] to fill them before copying. Fast and intuitive.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                            </svg>
+                        </div>
+                        <h3>Dark Mode</h3>
+                        <p>Easy on the eyes. Your preference persists across sessions.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MCP Section -->
+            <section class="landing-mcp">
+                <div class="mcp-content">
+                    <div class="mcp-text">
+                        <h2>Works with Claude Desktop</h2>
+                        <p>Connect PromptShelf to Claude Desktop using the Model Context Protocol (MCP). Access your entire prompt library without leaving your conversation.</p>
+                        <ul class="mcp-features-list">
+                            <li>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                List and search prompts
+                            </li>
+                            <li>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Get prompt content with versions
+                            </li>
+                            <li>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Filter by tags
+                            </li>
+                            <li>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Secure API key authentication
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="mcp-code">
+                        <div class="code-header">claude_desktop_config.json</div>
+                        <pre><code>{
+  "mcpServers": {
+    "promptshelf": {
+      "url": "https://...cloudfunctions.net/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CTA Section -->
+            <section class="landing-cta">
+                <h2>Ready to organize your prompts?</h2>
+                <p>Join developers who use PromptShelf to manage their AI workflows.</p>
+                <button id="cta-get-started" class="btn primary large">
+                    Get Started Free
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </button>
+            </section>
+
+            <!-- Footer -->
+            <footer class="landing-footer">
+                <div class="footer-content">
+                    <div class="footer-brand">
+                        <span class="footer-logo">PromptShelf</span>
+                        <p>Built with AI, for humans who work with AI.</p>
+                    </div>
+                    <div class="footer-links">
+                        <a href="https://github.com/n2waf/PromptShelf" target="_blank">GitHub</a>
+                        <a href="https://github.com/n2waf" target="_blank">@n2waf</a>
+                    </div>
+                </div>
+            </footer>
         </div>
-        <div class="login-right">
-            <div class="login-form-container">
-                <h1>PromptShelf</h1>
-                <p class="login-subtitle">Sign in to manage your prompts</p>
+
+        <!-- Login Modal (shown when clicking Get Started) -->
+        <div id="login-modal" class="modal hidden">
+            <div class="modal-content login-modal-content">
+                <button class="modal-close" id="close-login-modal">&times;</button>
+                <h2>Welcome to PromptShelf</h2>
+                <p class="login-subtitle">Sign in to start managing your prompts</p>
 
                 <form id="login-form" class="login-form">
                     <div class="form-group">
@@ -78,11 +268,6 @@
                 <div class="login-switch">
                     <span id="login-switch-text">Don't have an account?</span>
                     <button type="button" id="login-switch-btn" class="btn-link">Sign Up</button>
-                </div>
-
-                <div class="login-footer">
-                    <p>Created by <a href="https://github.com/n2waf" target="_blank">Nawaf Almuaither</a></p>
-                    <p><a href="https://github.com/n2waf/PromptShelf" target="_blank">View on GitHub</a></p>
                 </div>
             </div>
         </div>
@@ -393,6 +578,6 @@
     <div id="toast" class="toast hidden"></div>
 
     <!-- App Script -->
-    <script src="app.js?v=20241218-13"></script>
+    <script src="app.js?v=20241220-2"></script>
 </body>
 </html>

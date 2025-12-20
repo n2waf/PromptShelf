@@ -1741,6 +1741,12 @@
                 elements.loginSwitchBtn = document.getElementById('login-switch-btn');
                 elements.githubLoginBtn = document.getElementById('github-login-btn');
 
+                // Cache landing page elements
+                elements.loginModal = document.getElementById('login-modal');
+                elements.closeLoginModal = document.getElementById('close-login-modal');
+                elements.heroGetStarted = document.getElementById('hero-get-started');
+                elements.ctaGetStarted = document.getElementById('cta-get-started');
+
                 // Bind login form events
                 this.bindLoginEvents();
 
@@ -1805,6 +1811,36 @@
             elements.githubLoginBtn?.addEventListener('click', async () => {
                 await this.handleGitHubLogin();
             });
+
+            // Landing page - Get Started buttons
+            elements.heroGetStarted?.addEventListener('click', () => {
+                this.showLoginModal();
+            });
+            elements.ctaGetStarted?.addEventListener('click', () => {
+                this.showLoginModal();
+            });
+
+            // Close login modal
+            elements.closeLoginModal?.addEventListener('click', () => {
+                this.hideLoginModal();
+            });
+
+            // Close modal on backdrop click
+            elements.loginModal?.addEventListener('click', (e) => {
+                if (e.target === elements.loginModal) {
+                    this.hideLoginModal();
+                }
+            });
+        },
+
+        showLoginModal() {
+            elements.loginModal?.classList.remove('hidden');
+            document.body.classList.add('modal-open');
+        },
+
+        hideLoginModal() {
+            elements.loginModal?.classList.add('hidden');
+            document.body.classList.remove('modal-open');
         },
 
         async handleLoginSubmit() {
