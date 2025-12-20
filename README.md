@@ -1,6 +1,8 @@
 # PromptShelf
 
-A local-first prompt management tool with automatic versioning. Store, organize, and track changes to your AI prompts — all in your browser, completely offline.
+A prompt management tool with automatic versioning and MCP integration. Store, organize, and track changes to your AI prompts — with cloud sync and API access.
+
+**Live Demo:** [https://promptshelf-75139.web.app](https://promptshelf-75139.web.app)
 
 ## Features
 
@@ -15,16 +17,35 @@ A local-first prompt management tool with automatic versioning. Store, organize,
 - **Import/Export** — Backup and share prompts as JSON files
 - **Auto-save Drafts** — Never lose work with automatic draft saving
 - **Keyboard Shortcuts** — Work faster with hotkeys
-- **100% Offline** — No server, no account, no internet required
-- **Privacy First** — All data stays in your browser (IndexedDB)
+- **Cloud Sync** — Sign in with Google to sync across devices
+- **MCP Server** — Access your prompts from Claude Desktop and other MCP clients
+- **Privacy First** — Your data, your control
+
+## MCP Integration
+
+Connect Claude Desktop or other MCP clients to access your prompts directly.
+
+1. Sign in to PromptShelf
+2. Go to your Profile page
+3. Copy the MCP config
+4. Add it to `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+Available tools:
+- `list_prompts` — List all prompts, optionally filter by tag
+- `get_prompt` — Get a specific prompt with its content
+- `search_prompts` — Search prompts by title, description, or content
+- `get_versions` — Get version history for a prompt
+- `get_tags` — Get all tags with usage counts
 
 ## How to Use
 
-1. Download or clone this repository
-2. Open `index.html` in your browser
-3. Start creating prompts!
+### Cloud Version (Recommended)
+Visit [https://promptshelf-75139.web.app](https://promptshelf-75139.web.app) and sign in with Google.
 
-That's it. No installation, no build steps, no dependencies.
+### Self-Hosted
+1. Clone this repository
+2. Set up Firebase project with Firestore and Authentication
+3. Deploy with `firebase deploy`
 
 ## Keyboard Shortcuts
 
@@ -35,15 +56,11 @@ That's it. No installation, no build steps, no dependencies.
 | `Ctrl/Cmd + /` | Focus search |
 | `Escape` | Close modals |
 
-## Screenshots
-
-*Coming soon*
-
 ## Tech Stack
 
-- Pure HTML, CSS, and JavaScript
-- IndexedDB for local storage
-- No frameworks, no build tools, no dependencies
+- Frontend: Pure HTML, CSS, and JavaScript
+- Backend: Firebase (Firestore, Authentication, Cloud Functions, Hosting)
+- MCP Server: Streamable HTTP transport for serverless compatibility
 
 ## Credits
 
