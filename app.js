@@ -374,6 +374,8 @@
         async signInWithGitHub() {
             if (!firebaseAuth) throw new Error('Firebase not initialized');
             const provider = new firebase.auth.GithubAuthProvider();
+            provider.addScope('user:email');
+            provider.setCustomParameters({ allow_signup: 'true' });
             const userCredential = await firebaseAuth.signInWithPopup(provider);
             return userCredential.user;
         },
