@@ -1453,12 +1453,18 @@
                 elements.profilePage.classList.remove('hidden');
                 this.renderProfileData();
             }
+            if (elements.appContainer) {
+                elements.appContainer.classList.add('hidden');
+            }
             this.hideUserDropdown();
         },
 
         hideProfilePage() {
             if (elements.profilePage) {
                 elements.profilePage.classList.add('hidden');
+            }
+            if (elements.appContainer) {
+                elements.appContainer.classList.remove('hidden');
             }
         },
 
