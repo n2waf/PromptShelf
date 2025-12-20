@@ -1448,7 +1448,7 @@
         },
 
         // Profile Page Methods
-        showProfilePage() {
+        showProfilePage(pushState = true) {
             if (elements.profilePage) {
                 elements.profilePage.classList.remove('hidden');
                 this.renderProfileData();
@@ -1456,15 +1456,30 @@
             if (elements.appContainer) {
                 elements.appContainer.classList.add('hidden');
             }
+            if (pushState) {
+                history.pushState({ page: 'profile' }, '', '/profile');
+            }
             this.hideUserDropdown();
         },
 
-        hideProfilePage() {
+        hideProfilePage(pushState = true) {
             if (elements.profilePage) {
                 elements.profilePage.classList.add('hidden');
             }
             if (elements.appContainer) {
                 elements.appContainer.classList.remove('hidden');
+            }
+            if (pushState) {
+                history.pushState({ page: 'home' }, '', '/');
+            }
+        },
+
+        handleRoute() {
+            const path = window.location.pathname;
+            if (path === '/profile') {
+                this.showProfilePage(false);
+            } else {
+                this.hideProfilePage(false);
             }
         },
 
@@ -1650,7 +1665,7 @@
                             await this.loadData();
                             this.hideLoading();
                             this.showApp();
-                            UI.showToast('Signed in!', 'success');
+                            UI.handleRoute(); // Handle /profile route
                         } else {
                             // User logged out - show login screen
                             this.hideLoading();
@@ -1901,6 +1916,9 @@
             elements.profileBtn?.addEventListener('click', () => UI.showProfilePage());
             elements.profileBackBtn?.addEventListener('click', () => UI.hideProfilePage());
             elements.profileSignoutBtn?.addEventListener('click', () => this.handleLogout());
+
+            // Handle browser back/forward for routing
+            window.addEventListener('popstate', () => UI.handleRoute());
             elements.authForm?.addEventListener('submit', (e) => this.handleAuthSubmit(e));
             elements.authSwitchBtn?.addEventListener('click', () => this.handleAuthModeSwitch());
             elements.authModal?.addEventListener('click', (e) => {
