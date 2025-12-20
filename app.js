@@ -1091,6 +1091,9 @@
             elements.copyApiKeyBtn = document.getElementById('copy-api-key-btn');
             elements.regenerateApiKeyBtn = document.getElementById('regenerate-api-key-btn');
             elements.profileSignoutBtn = document.getElementById('profile-signout-btn');
+            elements.mcpConfigJson = document.getElementById('mcp-config-json');
+            elements.copyMcpUrlBtn = document.getElementById('copy-mcp-url-btn');
+            elements.copyMcpConfigBtn = document.getElementById('copy-mcp-config-btn');
         },
 
         getElements() { return elements; },
@@ -1629,6 +1632,21 @@
                 try {
                     const apiKey = await Firebase.getOrCreateApiKey();
                     elements.profileApiKey.textContent = apiKey || 'Error loading key';
+
+                    // Update MCP config with the API key
+                    if (elements.mcpConfigJson && apiKey) {
+                        const mcpConfig = {
+                            mcpServers: {
+                                promptshelf: {
+                                    url: "https://us-central1-promptshelf-75139.cloudfunctions.net/mcp",
+                                    headers: {
+                                        Authorization: `Bearer ${apiKey}`
+                                    }
+                                }
+                            }
+                        };
+                        elements.mcpConfigJson.textContent = JSON.stringify(mcpConfig, null, 2);
+                    }
                 } catch (error) {
                     console.error('Failed to load API key:', error);
                     elements.profileApiKey.textContent = 'Error loading key';
@@ -2007,6 +2025,25 @@
             elements.regenerateApiKeyBtn?.addEventListener('click', () => {
                 if (confirm('Are you sure you want to regenerate your API key? The old key will stop working.')) {
                     UI.regenerateApiKey();
+                }
+            });
+            elements.copyMcpUrlBtn?.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText('https://us-central1-promptshelf-75139.cloudfunctions.net/mcp');
+                    UI.showToast('MCP URL copied!');
+                } catch (error) {
+                    UI.showToast('Failed to copy', 'error');
+                }
+            });
+            elements.copyMcpConfigBtn?.addEventListener('click', async () => {
+                const config = elements.mcpConfigJson?.textContent;
+                if (config && config !== 'Loading...') {
+                    try {
+                        await navigator.clipboard.writeText(config);
+                        UI.showToast('MCP config copied!');
+                    } catch (error) {
+                        UI.showToast('Failed to copy', 'error');
+                    }
                 }
             });
 

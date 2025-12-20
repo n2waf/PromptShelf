@@ -2031,6 +2031,65 @@ body.dark .checkbox-label:hover {
     height: 16px;
 }
 
+/* MCP Connection Styles */
+.mcp-endpoint label,
+.mcp-config label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mcp-config-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.mcp-config-code {
+    flex: 1;
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+    overflow-x: auto;
+}
+
+.mcp-config-container .btn-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    align-self: flex-start;
+}
+
+.mcp-config-container .btn-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.mcp-config-help {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.mcp-config-help code {
+    background: var(--bg-secondary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
 /* Responsive login */
 @media (max-width: 768px) {
     .login-screen {

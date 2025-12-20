@@ -161,6 +161,36 @@
                 </div>
 
                 <div class="profile-section">
+                    <h3>MCP Connection</h3>
+                    <p class="api-key-description">Connect Claude Desktop or other MCP clients to access your prompts.</p>
+                    <div class="mcp-endpoint">
+                        <label>Endpoint URL</label>
+                        <div class="api-key-container">
+                            <code id="mcp-endpoint-url" class="api-key-value">https://us-central1-promptshelf-75139.cloudfunctions.net/mcp</code>
+                            <button id="copy-mcp-url-btn" class="btn-icon" title="Copy URL">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mcp-config" style="margin-top: 16px;">
+                        <label>Claude Desktop Config</label>
+                        <div class="mcp-config-container">
+                            <pre id="mcp-config-json" class="mcp-config-code">Loading...</pre>
+                            <button id="copy-mcp-config-btn" class="btn-icon" title="Copy Config">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="mcp-config-help">Add this to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></p>
+                    </div>
+                </div>
+
+                <div class="profile-section">
                     <h3>Danger Zone</h3>
                     <button id="profile-signout-btn" class="btn danger full-width">Sign Out</button>
                 </div>
