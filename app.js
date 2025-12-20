@@ -371,6 +371,13 @@
             await firebaseAuth.signOut();
         },
 
+        async signInWithGitHub() {
+            if (!firebaseAuth) throw new Error('Firebase not initialized');
+            const provider = new firebase.auth.GithubAuthProvider();
+            const userCredential = await firebaseAuth.signInWithPopup(provider);
+            return userCredential.user;
+        },
+
         onAuthChange(callback) {
             if (!firebaseAuth) return () => {};
             return firebaseAuth.onAuthStateChanged(callback);
@@ -1459,6 +1466,7 @@
                 elements.loginSubmitBtn = document.getElementById('login-submit-btn');
                 elements.loginSwitchText = document.getElementById('login-switch-text');
                 elements.loginSwitchBtn = document.getElementById('login-switch-btn');
+                elements.githubLoginBtn = document.getElementById('github-login-btn');
 
                 // Bind login form events
                 this.bindLoginEvents();
@@ -1519,6 +1527,11 @@
             elements.loginSwitchBtn?.addEventListener('click', () => {
                 this.toggleLoginMode();
             });
+
+            // GitHub login
+            elements.githubLoginBtn?.addEventListener('click', async () => {
+                await this.handleGitHubLogin();
+            });
         },
 
         async handleLoginSubmit() {
@@ -1550,6 +1563,19 @@
             }
         },
 
+        async handleGitHubLogin() {
+            elements.githubLoginBtn.disabled = true;
+            this.hideLoginError();
+
+            try {
+                await Firebase.signInWithGitHub();
+            } catch (error) {
+                console.error('GitHub auth error:', error);
+                this.showLoginError(this.getAuthErrorMessage(error.code));
+                elements.githubLoginBtn.disabled = false;
+            }
+        },
+
         getAuthErrorMessage(code) {
             const messages = {
                 'auth/invalid-email': 'Invalid email address',
@@ -1559,7 +1585,9 @@
                 'auth/email-already-in-use': 'An account already exists with this email',
                 'auth/weak-password': 'Password should be at least 6 characters',
                 'auth/invalid-credential': 'Invalid email or password',
-                'auth/too-many-requests': 'Too many attempts. Please try again later'
+                'auth/too-many-requests': 'Too many attempts. Please try again later',
+                'auth/account-exists-with-different-credential': 'An account already exists with this email using a different sign-in method',
+                'auth/popup-closed-by-user': 'Sign-in popup was closed'
             };
             return messages[code] || 'Authentication failed. Please try again.';
         },
