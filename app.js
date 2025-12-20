@@ -378,11 +378,6 @@
             return userCredential.user;
         },
 
-        async linkWithCredential(credential) {
-            if (!firebaseAuth?.currentUser) throw new Error('No user signed in');
-            await firebaseAuth.currentUser.linkWithCredential(credential);
-        },
-
         onAuthChange(callback) {
             if (!firebaseAuth) return () => {};
             return firebaseAuth.onAuthStateChanged(callback);
@@ -1453,8 +1448,6 @@
 
     const App = {
         loginMode: 'signin', // 'signin' or 'signup'
-        pendingCredential: null, // For linking accounts
-        pendingEmail: null, // Email for account linking
 
         async init() {
             try {
@@ -1561,17 +1554,6 @@
                 } else {
                     await Firebase.signUp(email, password);
                 }
-
-                // Link pending GitHub credential if exists
-                if (this.pendingCredential) {
-                    try {
-                        await Firebase.linkWithCredential(this.pendingCredential);
-                        console.log('GitHub account linked successfully');
-                    } catch (linkError) {
-                        console.error('Failed to link GitHub account:', linkError);
-                    }
-                    this.pendingCredential = null;
-                }
                 // Auth state listener will handle the rest
             } catch (error) {
                 console.error('Auth error:', error);
@@ -1589,21 +1571,7 @@
                 await Firebase.signInWithGitHub();
             } catch (error) {
                 console.error('GitHub auth error:', error);
-
-                // Handle account linking when email already exists with different provider
-                if (error.code === 'auth/account-exists-with-different-credential') {
-                    // Get credential from error using the correct method
-                    const credential = firebase.auth.GithubAuthProvider.credentialFromError(error);
-                    this.pendingCredential = credential;
-                    const email = error.customData?.email || error.email;
-                    if (email) {
-                        elements.loginEmail.value = email;
-                        this.pendingEmail = email;
-                    }
-                    this.showLoginError('Sign in with your password to link your GitHub account.');
-                } else {
-                    this.showLoginError(this.getAuthErrorMessage(error.code));
-                }
+                this.showLoginError(this.getAuthErrorMessage(error.code));
                 elements.githubLoginBtn.disabled = false;
             }
         },
