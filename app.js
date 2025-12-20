@@ -387,6 +387,46 @@
 
         getCurrentUser() {
             return firebaseAuth?.currentUser || null;
+        },
+
+        generateApiKey() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            const segments = [];
+            for (let s = 0; s < 4; s++) {
+                let segment = '';
+                for (let i = 0; i < 8; i++) {
+                    segment += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                segments.push(segment);
+            }
+            return 'ps_' + segments.join('_');
+        },
+
+        async getOrCreateApiKey() {
+            const user = this.getCurrentUser();
+            if (!user || !firebaseDb) return null;
+
+            const userDoc = firebaseDb.collection('users').doc(user.uid);
+            const doc = await userDoc.get();
+
+            if (doc.exists && doc.data().apiKey) {
+                return doc.data().apiKey;
+            }
+
+            // Generate new API key
+            const apiKey = this.generateApiKey();
+            await userDoc.set({ apiKey }, { merge: true });
+            return apiKey;
+        },
+
+        async regenerateApiKey() {
+            const user = this.getCurrentUser();
+            if (!user || !firebaseDb) return null;
+
+            const apiKey = this.generateApiKey();
+            const userDoc = firebaseDb.collection('users').doc(user.uid);
+            await userDoc.set({ apiKey }, { merge: true });
+            return apiKey;
         }
     };
 
@@ -1047,6 +1087,9 @@
             elements.profileLastSignin = document.getElementById('profile-last-signin');
             elements.profileUid = document.getElementById('profile-uid');
             elements.profileProviders = document.getElementById('profile-providers');
+            elements.profileApiKey = document.getElementById('profile-api-key');
+            elements.copyApiKeyBtn = document.getElementById('copy-api-key-btn');
+            elements.regenerateApiKeyBtn = document.getElementById('regenerate-api-key-btn');
             elements.profileSignoutBtn = document.getElementById('profile-signout-btn');
         },
 
@@ -1575,6 +1618,50 @@
 
                 elements.profileProviders.innerHTML = html;
             }
+
+            // Load API Key
+            this.loadApiKey();
+        },
+
+        async loadApiKey() {
+            if (elements.profileApiKey) {
+                elements.profileApiKey.textContent = 'Loading...';
+                try {
+                    const apiKey = await Firebase.getOrCreateApiKey();
+                    elements.profileApiKey.textContent = apiKey || 'Error loading key';
+                } catch (error) {
+                    console.error('Failed to load API key:', error);
+                    elements.profileApiKey.textContent = 'Error loading key';
+                }
+            }
+        },
+
+        async copyApiKey() {
+            const apiKey = elements.profileApiKey?.textContent;
+            if (apiKey && apiKey !== 'Loading...' && apiKey !== 'Error loading key') {
+                try {
+                    await navigator.clipboard.writeText(apiKey);
+                    UI.showToast('API key copied!');
+                } catch (error) {
+                    console.error('Failed to copy:', error);
+                    UI.showToast('Failed to copy', 'error');
+                }
+            }
+        },
+
+        async regenerateApiKey() {
+            if (elements.profileApiKey) {
+                elements.profileApiKey.textContent = 'Generating...';
+                try {
+                    const apiKey = await Firebase.regenerateApiKey();
+                    elements.profileApiKey.textContent = apiKey || 'Error generating key';
+                    UI.showToast('API key regenerated!');
+                } catch (error) {
+                    console.error('Failed to regenerate API key:', error);
+                    elements.profileApiKey.textContent = 'Error generating key';
+                    UI.showToast('Failed to regenerate', 'error');
+                }
+            }
         },
 
         getEmailIcon() {
@@ -1916,6 +2003,12 @@
             elements.profileBtn?.addEventListener('click', () => UI.showProfilePage());
             elements.profileBackBtn?.addEventListener('click', () => UI.hideProfilePage());
             elements.profileSignoutBtn?.addEventListener('click', () => this.handleLogout());
+            elements.copyApiKeyBtn?.addEventListener('click', () => UI.copyApiKey());
+            elements.regenerateApiKeyBtn?.addEventListener('click', () => {
+                if (confirm('Are you sure you want to regenerate your API key? The old key will stop working.')) {
+                    UI.regenerateApiKey();
+                }
+            });
 
             // Handle browser back/forward for routing
             window.addEventListener('popstate', () => UI.handleRoute());

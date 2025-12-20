@@ -140,6 +140,27 @@
                 </div>
 
                 <div class="profile-section">
+                    <h3>API Key</h3>
+                    <p class="api-key-description">Use this key to access your prompts via the API.</p>
+                    <div class="api-key-container">
+                        <code id="profile-api-key" class="api-key-value">Loading...</code>
+                        <button id="copy-api-key-btn" class="btn-icon" title="Copy API Key">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <button id="regenerate-api-key-btn" class="btn secondary full-width" style="margin-top: 12px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; margin-right: 8px;">
+                            <path d="M23 4v6h-6M1 20v-6h6"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Regenerate API Key
+                    </button>
+                </div>
+
+                <div class="profile-section">
                     <h3>Danger Zone</h3>
                     <button id="profile-signout-btn" class="btn danger full-width">Sign Out</button>
                 </div>
