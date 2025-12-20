@@ -88,6 +88,65 @@
         </div>
     </div>
 
+    <!-- Profile Page -->
+    <div id="profile-page" class="profile-page hidden">
+        <div class="profile-container">
+            <div class="profile-header">
+                <button id="profile-back-btn" class="btn-icon" title="Back">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <h1>Profile</h1>
+            </div>
+
+            <div class="profile-content">
+                <div class="profile-avatar-section">
+                    <div id="profile-avatar" class="profile-avatar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                    </div>
+                    <div id="profile-name" class="profile-name"></div>
+                    <div id="profile-email" class="profile-email-display"></div>
+                </div>
+
+                <div class="profile-section">
+                    <h3>Account Information</h3>
+                    <div class="profile-info-grid">
+                        <div class="profile-info-item">
+                            <span class="profile-label">Email</span>
+                            <span id="profile-info-email" class="profile-value"></span>
+                        </div>
+                        <div class="profile-info-item">
+                            <span class="profile-label">Account Created</span>
+                            <span id="profile-created" class="profile-value"></span>
+                        </div>
+                        <div class="profile-info-item">
+                            <span class="profile-label">Last Sign In</span>
+                            <span id="profile-last-signin" class="profile-value"></span>
+                        </div>
+                        <div class="profile-info-item">
+                            <span class="profile-label">User ID</span>
+                            <span id="profile-uid" class="profile-value profile-uid"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-section">
+                    <h3>Connected Accounts</h3>
+                    <div id="profile-providers" class="profile-providers"></div>
+                </div>
+
+                <div class="profile-section">
+                    <h3>Danger Zone</h3>
+                    <button id="profile-signout-btn" class="btn danger full-width">Sign Out</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container hidden" id="app-container">
         <!-- Header -->
         <header class="header">
@@ -131,6 +190,7 @@
                     <div id="user-dropdown" class="user-dropdown hidden">
                         <div id="user-email" class="user-email"></div>
                         <div id="sync-status" class="sync-status"></div>
+                        <button id="profile-btn" class="dropdown-item">Profile</button>
                         <button id="sync-now-btn" class="dropdown-item">Backup to Cloud</button>
                         <button id="logout-btn" class="dropdown-item danger">Sign Out</button>
                     </div>

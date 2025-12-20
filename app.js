@@ -1034,6 +1034,20 @@
             elements.authModalTitle = document.getElementById('auth-modal-title');
             elements.authSwitchText = document.getElementById('auth-switch-text');
             elements.authSwitchBtn = document.getElementById('auth-switch-btn');
+
+            // Profile elements
+            elements.profileBtn = document.getElementById('profile-btn');
+            elements.profilePage = document.getElementById('profile-page');
+            elements.profileBackBtn = document.getElementById('profile-back-btn');
+            elements.profileAvatar = document.getElementById('profile-avatar');
+            elements.profileName = document.getElementById('profile-name');
+            elements.profileEmail = document.getElementById('profile-email');
+            elements.profileInfoEmail = document.getElementById('profile-info-email');
+            elements.profileCreated = document.getElementById('profile-created');
+            elements.profileLastSignin = document.getElementById('profile-last-signin');
+            elements.profileUid = document.getElementById('profile-uid');
+            elements.profileProviders = document.getElementById('profile-providers');
+            elements.profileSignoutBtn = document.getElementById('profile-signout-btn');
         },
 
         getElements() { return elements; },
@@ -1431,6 +1445,137 @@
             if (elements.userDropdown) {
                 elements.userDropdown.classList.toggle('hidden');
             }
+        },
+
+        // Profile Page Methods
+        showProfilePage() {
+            if (elements.profilePage) {
+                elements.profilePage.classList.remove('hidden');
+                this.renderProfileData();
+            }
+            this.hideUserDropdown();
+        },
+
+        hideProfilePage() {
+            if (elements.profilePage) {
+                elements.profilePage.classList.add('hidden');
+            }
+        },
+
+        renderProfileData() {
+            const user = Firebase.getCurrentUser();
+            if (!user) return;
+
+            // Avatar
+            if (elements.profileAvatar) {
+                if (user.photoURL) {
+                    elements.profileAvatar.innerHTML = `<img src="${user.photoURL}" alt="Profile">`;
+                } else {
+                    elements.profileAvatar.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>`;
+                }
+            }
+
+            // Name and email
+            if (elements.profileName) {
+                elements.profileName.textContent = user.displayName || 'User';
+            }
+            if (elements.profileEmail) {
+                elements.profileEmail.textContent = user.email || '';
+            }
+            if (elements.profileInfoEmail) {
+                elements.profileInfoEmail.textContent = user.email || 'Not set';
+            }
+
+            // Account dates
+            if (elements.profileCreated) {
+                const createdDate = user.metadata?.creationTime;
+                elements.profileCreated.textContent = createdDate
+                    ? new Date(createdDate).toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'long', day: 'numeric'
+                    })
+                    : 'Unknown';
+            }
+            if (elements.profileLastSignin) {
+                const lastSignIn = user.metadata?.lastSignInTime;
+                elements.profileLastSignin.textContent = lastSignIn
+                    ? new Date(lastSignIn).toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'long', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    })
+                    : 'Unknown';
+            }
+
+            // User ID
+            if (elements.profileUid) {
+                elements.profileUid.textContent = user.uid;
+            }
+
+            // Providers
+            if (elements.profileProviders) {
+                const providers = user.providerData || [];
+                const providerTypes = {
+                    'password': { name: 'Email & Password', icon: this.getEmailIcon() },
+                    'github.com': { name: 'GitHub', icon: this.getGitHubIcon() },
+                    'google.com': { name: 'Google', icon: this.getGoogleIcon() }
+                };
+
+                const hasPassword = providers.some(p => p.providerId === 'password');
+                const hasGitHub = providers.some(p => p.providerId === 'github.com');
+
+                let html = '';
+
+                // Email/Password provider
+                html += `
+                    <div class="provider-item">
+                        <div class="provider-info">
+                            <div class="provider-icon">${providerTypes['password'].icon}</div>
+                            <span class="provider-name">${providerTypes['password'].name}</span>
+                        </div>
+                        <span class="provider-status ${hasPassword ? 'connected' : 'not-connected'}">
+                            ${hasPassword ? 'Connected' : 'Not connected'}
+                        </span>
+                    </div>`;
+
+                // GitHub provider
+                html += `
+                    <div class="provider-item">
+                        <div class="provider-info">
+                            <div class="provider-icon">${providerTypes['github.com'].icon}</div>
+                            <span class="provider-name">${providerTypes['github.com'].name}</span>
+                        </div>
+                        <span class="provider-status ${hasGitHub ? 'connected' : 'not-connected'}">
+                            ${hasGitHub ? 'Connected' : 'Not connected'}
+                        </span>
+                    </div>`;
+
+                elements.profileProviders.innerHTML = html;
+            }
+        },
+
+        getEmailIcon() {
+            return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+            </svg>`;
+        },
+
+        getGitHubIcon() {
+            return `<svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+            </svg>`;
+        },
+
+        getGoogleIcon() {
+            return `<svg viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>`;
         }
     };
 
@@ -1747,6 +1892,9 @@
             elements.userMenuBtn?.addEventListener('click', () => UI.toggleUserDropdown());
             elements.logoutBtn?.addEventListener('click', () => this.handleLogout());
             elements.syncNowBtn?.addEventListener('click', () => this.handleSyncNow());
+            elements.profileBtn?.addEventListener('click', () => UI.showProfilePage());
+            elements.profileBackBtn?.addEventListener('click', () => UI.hideProfilePage());
+            elements.profileSignoutBtn?.addEventListener('click', () => this.handleLogout());
             elements.authForm?.addEventListener('submit', (e) => this.handleAuthSubmit(e));
             elements.authSwitchBtn?.addEventListener('click', () => this.handleAuthModeSwitch());
             elements.authModal?.addEventListener('click', (e) => {
@@ -2457,6 +2605,7 @@
             try {
                 await Firebase.signOut();
                 UI.hideUserDropdown();
+                UI.hideProfilePage();
                 UI.showToast('Signed out');
             } catch (error) {
                 console.error('Logout error:', error);
