@@ -13,6 +13,10 @@
     ],
     "rewrites": [
       {
+        "source": "/",
+        "destination": "/landing.html"
+      },
+      {
         "source": "/mcp/**",
         "function": "mcp"
       },
@@ -23,12 +27,6 @@
       {
         "source": "**",
         "destination": "/index.html"
-      }
-    ],
-    "rewrites": [
-      {
-        "source": "/",
-        "destination": "/landing.html"
       }
     ],
     "headers": [
