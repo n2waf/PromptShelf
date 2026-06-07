@@ -13,20 +13,16 @@
     ],
     "rewrites": [
       {
-        "source": "/",
-        "destination": "/landing.html"
-      },
-      {
         "source": "/mcp/**",
         "function": "mcp"
       },
       {
         "source": "/profile",
-        "destination": "/index.html"
+        "destination": "/app.html"
       },
       {
         "source": "**",
-        "destination": "/index.html"
+        "destination": "/app.html"
       }
     ],
     "headers": [
